@@ -13,9 +13,12 @@ class AccountRepositoryImpl implements AccountRepository {
   final Uuid _uuid = const Uuid();
 
   @override
-  Stream<List<domain.Account>> watchActiveAccounts() {
+  Stream<List<domain.Account>> watchAccounts({bool archivedOnly = false}) {
     final query = _database.select(_database.accounts)
-      ..where((tbl) => tbl.deletedAt.isNull())
+      ..where(
+        (tbl) =>
+            archivedOnly ? tbl.deletedAt.isNotNull() : tbl.deletedAt.isNull(),
+      )
       ..orderBy(<OrderingTerm Function($AccountsTable)>[
         (tbl) => OrderingTerm.asc(tbl.name),
       ]);
@@ -78,6 +81,21 @@ class AccountRepositoryImpl implements AccountRepository {
         isActive: const Value(false),
         updatedAt: Value(now),
         deletedAt: Value(now),
+      ),
+    );
+  }
+
+  @override
+  Future<void> restoreAccount(String id) async {
+    final DateTime now = DateTime.now();
+
+    await (_database.update(
+      _database.accounts,
+    )..where((tbl) => tbl.id.equals(id))).write(
+      AccountsCompanion(
+        isActive: const Value(true),
+        updatedAt: Value(now),
+        deletedAt: const Value(null),
       ),
     );
   }

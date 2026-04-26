@@ -2,13 +2,15 @@ import 'package:money_manager/domain/entities/account.dart';
 import 'package:money_manager/domain/enums/account_type.dart';
 
 abstract class AccountRepository {
-  Stream<List<Account>> watchActiveAccounts();
+  Stream<List<Account>> watchAccounts({bool archivedOnly = false});
 
   Future<void> createAccount(CreateAccountInput input);
 
   Future<void> updateAccount(String id, UpdateAccountInput input);
 
   Future<void> softDeleteAccount(String id);
+
+  Future<void> restoreAccount(String id);
 }
 
 class CreateAccountInput {

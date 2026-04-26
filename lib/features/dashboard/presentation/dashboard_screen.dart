@@ -71,7 +71,9 @@ class DashboardScreen extends ConsumerWidget {
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
                         const SizedBox(height: 8),
-                        Text('Across ${summary.activeAccountsCount} active accounts'),
+                        Text(
+                          'Across ${summary.activeAccountsCount} active accounts',
+                        ),
                       ],
                     ),
                   ),
@@ -118,6 +120,38 @@ class DashboardScreen extends ConsumerWidget {
                 error: (_, _) => const SizedBox.shrink(),
               ),
               const SizedBox(height: 20),
+              Text(
+                'Quick access',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: const <Widget>[
+                  _DashboardShortcutCard(
+                    label: 'Accounts',
+                    icon: Icons.account_balance_wallet_rounded,
+                    route: '/accounts',
+                  ),
+                  _DashboardShortcutCard(
+                    label: 'Categories',
+                    icon: Icons.category_rounded,
+                    route: '/categories',
+                  ),
+                  _DashboardShortcutCard(
+                    label: 'Recurring',
+                    icon: Icons.repeat_rounded,
+                    route: '/recurring',
+                  ),
+                  _DashboardShortcutCard(
+                    label: 'Settings',
+                    icon: Icons.tune_rounded,
+                    route: '/settings',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
               Card(
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
@@ -150,16 +184,63 @@ class DashboardScreen extends ConsumerWidget {
 
                   return Column(
                     children: items
-                        .map((item) => _RecentTransactionTile(transaction: item))
+                        .map(
+                          (item) => _RecentTransactionTile(transaction: item),
+                        )
                         .toList(growable: false),
                   );
                 },
                 loading: () => const LinearProgressIndicator(),
-                error: (error, stackTrace) => Text(
-                  'Could not load recent transactions.\n$error',
-                ),
+                error: (error, stackTrace) =>
+                    Text('Could not load recent transactions.\n$error'),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardShortcutCard extends StatelessWidget {
+  const _DashboardShortcutCard({
+    required this.label,
+    required this.icon,
+    required this.route,
+  });
+
+  final String label;
+  final IconData icon;
+  final String route;
+
+  @override
+  Widget build(BuildContext context) {
+    final double width = (MediaQuery.sizeOf(context).width - 44) / 2;
+
+    return SizedBox(
+      width: width,
+      child: Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => context.push(route),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: <Widget>[
+                CircleAvatar(
+                  backgroundColor: AppColors.lightMint,
+                  foregroundColor: AppColors.primaryDark,
+                  child: Icon(icon),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -179,16 +260,17 @@ class _RecentTransactionTile extends StatelessWidget {
     final Color amountColor = isIncome
         ? AppColors.positive
         : isExpense
-            ? AppColors.negative
-            : AppColors.primary;
+        ? AppColors.negative
+        : AppColors.primary;
 
     final String amountLabel = switch (transaction.type) {
       TransactionType.income =>
         '+ ${CurrencyFormatter.formatMinorUnits(transaction.amountMinor)}',
       TransactionType.expense =>
         '- ${CurrencyFormatter.formatMinorUnits(transaction.amountMinor)}',
-      TransactionType.transfer =>
-        CurrencyFormatter.formatMinorUnits(transaction.amountMinor),
+      TransactionType.transfer => CurrencyFormatter.formatMinorUnits(
+        transaction.amountMinor,
+      ),
     };
 
     final String subtitle = switch (transaction.type) {
@@ -203,7 +285,9 @@ class _RecentTransactionTile extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
         title: Text(
-          transaction.note.isEmpty ? _titleFromType(transaction.type) : transaction.note,
+          transaction.note.isEmpty
+              ? _titleFromType(transaction.type)
+              : transaction.note,
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),

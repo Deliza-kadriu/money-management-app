@@ -9,8 +9,9 @@ import 'package:money_manager/features/settings/presentation/settings_screen.dar
 import 'package:money_manager/features/transactions/presentation/transactions_screen.dart';
 import 'package:money_manager/shared/widgets/app_shell.dart';
 
-final GlobalKey<NavigatorState> _rootNavigatorKey =
-    GlobalKey<NavigatorState>(debugLabel: 'root');
+final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
@@ -25,29 +26,8 @@ final GoRouter appRouter = GoRouter(
           routes: <RouteBase>[
             GoRoute(
               path: '/dashboard',
-              pageBuilder: (context, state) => const NoTransitionPage<void>(
-                child: DashboardScreen(),
-              ),
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: <RouteBase>[
-            GoRoute(
-              path: '/accounts',
-              pageBuilder: (context, state) => const NoTransitionPage<void>(
-                child: AccountsScreen(),
-              ),
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: <RouteBase>[
-            GoRoute(
-              path: '/categories',
-              pageBuilder: (context, state) => const NoTransitionPage<void>(
-                child: CategoriesScreen(),
-              ),
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage<void>(child: DashboardScreen()),
             ),
           ],
         ),
@@ -55,9 +35,8 @@ final GoRouter appRouter = GoRouter(
           routes: <RouteBase>[
             GoRoute(
               path: '/transactions',
-              pageBuilder: (context, state) => const NoTransitionPage<void>(
-                child: TransactionsScreen(),
-              ),
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage<void>(child: TransactionsScreen()),
             ),
           ],
         ),
@@ -65,13 +44,20 @@ final GoRouter appRouter = GoRouter(
           routes: <RouteBase>[
             GoRoute(
               path: '/reports',
-              pageBuilder: (context, state) => const NoTransitionPage<void>(
-                child: ReportsScreen(),
-              ),
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage<void>(child: ReportsScreen()),
             ),
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: '/accounts',
+      builder: (context, state) => const AccountsScreen(),
+    ),
+    GoRoute(
+      path: '/categories',
+      builder: (context, state) => const CategoriesScreen(),
     ),
     GoRoute(
       path: '/recurring',

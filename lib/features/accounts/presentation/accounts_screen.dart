@@ -6,93 +6,137 @@ import 'package:money_manager/domain/entities/account.dart' as domain;
 import 'package:money_manager/domain/enums/account_type.dart';
 import 'package:money_manager/domain/repositories/account_repository.dart';
 import 'package:money_manager/shared/providers/app_providers.dart';
+import 'package:money_manager/shared/widgets/app_mode_tabs.dart';
 
-class AccountsScreen extends ConsumerWidget {
+enum AccountListMode { active, archived }
+
+class AccountsScreen extends ConsumerStatefulWidget {
   const AccountsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final accountsAsync = ref.watch(accountsProvider);
+  ConsumerState<AccountsScreen> createState() => _AccountsScreenState();
+}
+
+class _AccountsScreenState extends ConsumerState<AccountsScreen> {
+  AccountListMode _mode = AccountListMode.active;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool archivedOnly = _mode == AccountListMode.archived;
+    final accountsAsync = ref.watch(accountsByModeProvider(archivedOnly));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Accounts'),
         actions: <Widget>[
-          IconButton(
-            onPressed: () => _showCreateAccountSheet(context, ref),
-            icon: const Icon(Icons.add_circle_outline_rounded),
-            tooltip: 'Create account',
-          ),
+          if (!archivedOnly)
+            IconButton(
+              onPressed: () => _showCreateAccountSheet(context, ref),
+              icon: const Icon(Icons.add_circle_outline_rounded),
+              tooltip: 'Create account',
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateAccountSheet(context, ref),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add account'),
-      ),
+      floatingActionButton: archivedOnly
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _showCreateAccountSheet(context, ref),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add account'),
+            ),
       body: accountsAsync.when(
         data: (accounts) {
           if (accounts.isEmpty) {
             return _EmptyAccountsState(
-              onCreate: () => _showCreateAccountSheet(context, ref),
+              mode: _mode,
+              onModeChanged: (mode) {
+                setState(() {
+                  _mode = mode;
+                });
+              },
+              onCreate: archivedOnly
+                  ? null
+                  : () => _showCreateAccountSheet(context, ref),
             );
           }
 
-          return ListView.separated(
+          return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            itemCount: accounts.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final account = accounts[index];
-
-              return Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  leading: CircleAvatar(
-                    backgroundColor: account.color.withValues(alpha: 0.16),
-                    foregroundColor: account.color,
-                    child: Icon(account.icon),
-                  ),
-                  title: Text(account.name),
-                  subtitle: Text(_accountTypeLabel(account.type)),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        await _showEditAccountSheet(context, ref, account);
-                      } else if (value == 'archive') {
-                        await ref
-                            .read(accountRepositoryProvider)
-                            .softDeleteAccount(account.id);
-                      }
-                    },
-                    itemBuilder: (context) => const <PopupMenuEntry<String>>[
-                      PopupMenuItem<String>(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem<String>(
-                        value: 'archive',
-                        child: Text('Archive'),
-                      ),
-                    ],
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: <Widget>[
-                        Text(
-                          CurrencyFormatter.formatMinorUnits(
-                            account.currentBalanceMinor,
+            children: <Widget>[
+              _AccountToolbar(
+                mode: _mode,
+                onModeChanged: (mode) {
+                  setState(() {
+                    _mode = mode;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              ...accounts.map(
+                (account) => Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: CircleAvatar(
+                      backgroundColor: account.color.withValues(alpha: 0.16),
+                      foregroundColor: account.color,
+                      child: Icon(account.icon),
+                    ),
+                    title: Text(account.name),
+                    subtitle: Text(_accountTypeLabel(account.type)),
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          await _showEditAccountSheet(context, ref, account);
+                        } else if (value == 'archive') {
+                          await ref
+                              .read(accountRepositoryProvider)
+                              .softDeleteAccount(account.id);
+                        } else if (value == 'restore') {
+                          await ref
+                              .read(accountRepositoryProvider)
+                              .restoreAccount(account.id);
+                        }
+                      },
+                      itemBuilder: (context) => archivedOnly
+                          ? const <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'restore',
+                                child: Text('Restore'),
+                              ),
+                            ]
+                          : const <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'edit',
+                                child: Text('Edit'),
+                              ),
+                              PopupMenuItem<String>(
+                                value: 'archive',
+                                child: Text('Archive'),
+                              ),
+                            ],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: <Widget>[
+                          Text(
+                            CurrencyFormatter.formatMinorUnits(
+                              account.currentBalanceMinor,
+                            ),
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          account.currencyCode,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            account.currencyCode,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -158,44 +202,98 @@ class AccountsScreen extends ConsumerWidget {
   }
 }
 
-class _EmptyAccountsState extends StatelessWidget {
-  const _EmptyAccountsState({required this.onCreate});
+class _AccountToolbar extends StatelessWidget {
+  const _AccountToolbar({required this.mode, required this.onModeChanged});
 
-  final VoidCallback onCreate;
+  final AccountListMode mode;
+  final ValueChanged<AccountListMode> onModeChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Icon(Icons.account_balance_wallet_outlined, size: 48),
-            const SizedBox(height: 12),
-            Text(
-              'No accounts yet',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Create your first account to start tracking balances and transactions.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Create account'),
-            ),
-          ],
+    return AppModeTabs<AccountListMode>(
+      selected: mode,
+      onChanged: onModeChanged,
+      items: const <AppModeTabItem<AccountListMode>>[
+        AppModeTabItem<AccountListMode>(
+          value: AccountListMode.active,
+          label: 'Active',
+          icon: Icons.account_balance_wallet_outlined,
         ),
+        AppModeTabItem<AccountListMode>(
+          value: AccountListMode.archived,
+          label: 'Archived',
+          icon: Icons.archive_outlined,
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyAccountsState extends StatelessWidget {
+  const _EmptyAccountsState({
+    required this.mode,
+    required this.onModeChanged,
+    required this.onCreate,
+  });
+
+  final AccountListMode mode;
+  final ValueChanged<AccountListMode> onModeChanged;
+  final VoidCallback? onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool archivedOnly = mode == AccountListMode.archived;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      child: Column(
+        children: <Widget>[
+          _AccountToolbar(mode: mode, onModeChanged: onModeChanged),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      archivedOnly
+                          ? Icons.archive_outlined
+                          : Icons.account_balance_wallet_outlined,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      archivedOnly ? 'No archived accounts' : 'No accounts yet',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      archivedOnly
+                          ? 'Archived accounts will appear here and can be restored.'
+                          : 'Create your first account to start tracking balances and transactions.',
+                      textAlign: TextAlign.center,
+                    ),
+                    if (!archivedOnly) ...<Widget>[
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: onCreate,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Create account'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _CreateAccountSheet extends StatefulWidget {
+class _CreateAccountSheet extends ConsumerStatefulWidget {
   const _CreateAccountSheet({
     required this.onCreate,
     this.onUpdate,
@@ -207,10 +305,11 @@ class _CreateAccountSheet extends StatefulWidget {
   final domain.Account? account;
 
   @override
-  State<_CreateAccountSheet> createState() => _CreateAccountSheetState();
+  ConsumerState<_CreateAccountSheet> createState() =>
+      _CreateAccountSheetState();
 }
 
-class _CreateAccountSheetState extends State<_CreateAccountSheet> {
+class _CreateAccountSheetState extends ConsumerState<_CreateAccountSheet> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _openingBalanceController = TextEditingController(
@@ -249,6 +348,8 @@ class _CreateAccountSheetState extends State<_CreateAccountSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final String baseCurrencyCode =
+        ref.watch(appSettingsProvider).valueOrNull?.baseCurrencyCode ?? 'USD';
     final MediaQueryData mediaQuery = MediaQuery.of(context);
 
     return Padding(
@@ -258,55 +359,50 @@ class _CreateAccountSheetState extends State<_CreateAccountSheet> {
         16,
         mediaQuery.viewInsets.bottom + 24,
       ),
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            Text(
-              _isEditing ? 'Edit account' : 'Create account',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Account name'),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Enter an account name';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<AccountType>(
-              initialValue: _selectedType,
-              decoration: const InputDecoration(labelText: 'Account type'),
-              items: AccountType.values
-                  .map(
-                    (type) => DropdownMenuItem<AccountType>(
-                      value: type,
-                      child: Text(_accountTypeLabel(type)),
-                    ),
-                  )
-                  .toList(growable: false),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _selectedType = value;
-                  _selectedIconKey = _defaultIconKey(value);
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            if (_isEditing)
-              InputDecorator(
-                decoration: const InputDecoration(labelText: 'Opening balance'),
-                child: Text(_openingBalanceController.text),
-              )
-            else
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                _isEditing ? 'Edit account' : 'Add account',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Account name'),
+                validator: (value) {
+                  if ((value ?? '').trim().isEmpty) {
+                    return 'Enter an account name';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<AccountType>(
+                initialValue: _selectedType,
+                decoration: const InputDecoration(labelText: 'Account type'),
+                items: AccountType.values
+                    .map(
+                      (type) => DropdownMenuItem<AccountType>(
+                        value: type,
+                        child: Text(_accountTypeLabel(type)),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _selectedType = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _openingBalanceController,
+                enabled: !_isEditing,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
@@ -316,71 +412,92 @@ class _CreateAccountSheetState extends State<_CreateAccountSheet> {
                   if (parsed == null) {
                     return 'Enter a valid amount';
                   }
-                  if (parsed < 0) {
-                    return 'Use 0 or a positive amount';
-                  }
                   return null;
                 },
               ),
-            const SizedBox(height: 16),
-            Text('Color', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              children: AccountVisuals.palette
-                  .map((colorValue) {
-                    final bool selected = colorValue == _selectedColorValue;
-                    final Color color = AccountVisuals.colorFromValue(
-                      colorValue,
-                    );
+              const SizedBox(height: 12),
+              InputDecorator(
+                decoration: const InputDecoration(labelText: 'Currency'),
+                child: Text(baseCurrencyCode),
+              ),
+              const SizedBox(height: 16),
+              Text('Color', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: AccountVisuals.palette
+                    .map((value) {
+                      final Color color = AccountVisuals.colorFromValue(value);
+                      final bool isSelected = _selectedColorValue == value;
 
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedColorValue = colorValue;
-                        });
-                      },
-                      child: CircleAvatar(
-                        radius: 18,
-                        backgroundColor: color,
-                        child: selected
-                            ? const Icon(
-                                Icons.check_rounded,
-                                color: Colors.white,
-                              )
-                            : null,
-                      ),
-                    );
-                  })
-                  .toList(growable: false),
-            ),
-            const SizedBox(height: 16),
-            Text('Icon', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              children: AccountVisuals.iconMap.entries
-                  .map((entry) {
-                    final bool selected = entry.key == _selectedIconKey;
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedColorValue = value;
+                          });
+                        },
+                        child: CircleAvatar(
+                          radius: isSelected ? 22 : 20,
+                          backgroundColor: color,
+                          child: isSelected
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+              const SizedBox(height: 16),
+              Text('Icon', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: AccountVisuals.iconMap.entries
+                    .map((entry) {
+                      final bool isSelected = _selectedIconKey == entry.key;
 
-                    return ChoiceChip(
-                      label: Icon(entry.value, size: 20),
-                      selected: selected,
-                      onSelected: (_) {
-                        setState(() {
-                          _selectedIconKey = entry.key;
-                        });
-                      },
-                    );
-                  })
-                  .toList(growable: false),
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _isSaving ? null : _submit,
-              child: Text(_isSaving ? 'Saving...' : 'Save account'),
-            ),
-          ],
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedIconKey = entry.key;
+                          });
+                        },
+                        child: CircleAvatar(
+                          radius: isSelected ? 22 : 20,
+                          backgroundColor: isSelected
+                              ? AccountVisuals.colorFromValue(
+                                  _selectedColorValue,
+                                )
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
+                          foregroundColor: isSelected
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.onSurface,
+                          child: Icon(entry.value),
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _isSaving ? null : _submit,
+                child: Text(
+                  _isSaving
+                      ? 'Saving...'
+                      : _isEditing
+                      ? 'Update account'
+                      : 'Save account',
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -391,33 +508,34 @@ class _CreateAccountSheetState extends State<_CreateAccountSheet> {
       return;
     }
 
+    final String baseCurrencyCode =
+        ref.read(appSettingsProvider).valueOrNull?.baseCurrencyCode ?? 'USD';
+
     setState(() {
       _isSaving = true;
     });
 
     try {
       if (_isEditing) {
-        await widget.onUpdate!(
+        await widget.onUpdate?.call(
           UpdateAccountInput(
             name: _nameController.text,
             type: _selectedType,
-            currencyCode: widget.account!.currencyCode,
+            currencyCode: baseCurrencyCode,
             colorValue: _selectedColorValue,
             iconKey: _selectedIconKey,
-            isActive: widget.account!.isActive,
+            isActive: true,
           ),
         );
       } else {
-        final int openingBalanceMinor = _parseMinorUnits(
-          _openingBalanceController.text,
-        );
-
         await widget.onCreate(
           CreateAccountInput(
             name: _nameController.text,
             type: _selectedType,
-            openingBalanceMinor: openingBalanceMinor,
-            currencyCode: 'USD',
+            openingBalanceMinor: _parseMinorUnits(
+              _openingBalanceController.text,
+            ),
+            currencyCode: baseCurrencyCode,
             colorValue: _selectedColorValue,
             iconKey: _selectedIconKey,
           ),
@@ -439,21 +557,6 @@ class _CreateAccountSheetState extends State<_CreateAccountSheet> {
   int _parseMinorUnits(String value) {
     final double parsed = double.parse(value.trim());
     return (parsed * 100).round();
-  }
-
-  String _defaultIconKey(AccountType type) {
-    switch (type) {
-      case AccountType.cash:
-        return 'wallet';
-      case AccountType.bankAccount:
-        return 'bank';
-      case AccountType.creditCard:
-        return 'credit_card';
-      case AccountType.savings:
-        return 'savings';
-      case AccountType.other:
-        return 'account';
-    }
   }
 
   String _accountTypeLabel(AccountType type) {

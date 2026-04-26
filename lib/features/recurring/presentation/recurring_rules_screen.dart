@@ -8,6 +8,7 @@ import 'package:money_manager/domain/enums/recurring_frequency.dart';
 import 'package:money_manager/domain/enums/transaction_type.dart';
 import 'package:money_manager/domain/repositories/recurring_rule_repository.dart';
 import 'package:money_manager/shared/providers/app_providers.dart';
+import 'package:money_manager/shared/widgets/app_mode_tabs.dart';
 
 enum RecurringListMode { active, suggestions, archived }
 
@@ -106,10 +107,16 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
                                 await ref
                                     .read(recurringRuleRepositoryProvider)
                                     .softDeleteRecurringRule(rule.id);
+                                await ref
+                                    .read(recurringReminderServiceProvider)
+                                    .cancelForRule(rule.id);
                               } else if (value == 'restore') {
                                 await ref
                                     .read(recurringRuleRepositoryProvider)
                                     .restoreRecurringRule(rule.id);
+                                await ref
+                                    .read(recurringReminderServiceProvider)
+                                    .scheduleForRule(rule);
                               }
                             },
                             itemBuilder: (context) => archivedOnly
@@ -257,16 +264,17 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
       showDragHandle: true,
       builder: (context) => _CreateRecurringRuleSheet(
         onCreate: (input) async {
-          await ref
+          final String ruleId = await ref
               .read(recurringRuleRepositoryProvider)
               .createRecurringRule(input);
           await ref
-              .read(notificationServiceProvider)
-              .scheduleRecurringRuleReminder(
-                notificationId: input.title.hashCode,
+              .read(recurringReminderServiceProvider)
+              .scheduleForInput(
+                ruleId: ruleId,
                 title: input.title,
-                body:
-                    'Recurring ${_typeLabel(input.type).toLowerCase()} is scheduled.',
+                type: input.type,
+                nextDueDate: input.nextDueDate,
+                reminderDaysBefore: input.reminderDaysBefore,
               );
         },
       ),
@@ -289,6 +297,15 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
           await ref
               .read(recurringRuleRepositoryProvider)
               .updateRecurringRule(rule.id, input);
+          await ref
+              .read(recurringReminderServiceProvider)
+              .scheduleForInput(
+                ruleId: rule.id,
+                title: input.title,
+                type: input.type,
+                nextDueDate: input.nextDueDate,
+                reminderDaysBefore: input.reminderDaysBefore,
+              );
         },
       ),
     );
@@ -298,6 +315,7 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
     final result = await ref
         .read(recurringRuleProcessorProvider)
         .processDueRules();
+    await ref.read(recurringReminderServiceProvider).syncActiveReminders();
 
     if (!mounted) {
       return;
@@ -375,25 +393,26 @@ class _RecurringToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<RecurringListMode>(
-      segments: const <ButtonSegment<RecurringListMode>>[
-        ButtonSegment<RecurringListMode>(
+    return AppModeTabs<RecurringListMode>(
+      selected: mode,
+      onChanged: onModeChanged,
+      items: const <AppModeTabItem<RecurringListMode>>[
+        AppModeTabItem<RecurringListMode>(
           value: RecurringListMode.active,
-          label: Text('Active'),
+          label: 'Active',
+          icon: Icons.repeat_rounded,
         ),
-        ButtonSegment<RecurringListMode>(
+        AppModeTabItem<RecurringListMode>(
           value: RecurringListMode.suggestions,
-          label: Text('Suggestions'),
+          label: 'Suggestions',
+          icon: Icons.fact_check_outlined,
         ),
-        ButtonSegment<RecurringListMode>(
+        AppModeTabItem<RecurringListMode>(
           value: RecurringListMode.archived,
-          label: Text('Archived'),
+          label: 'Archived',
+          icon: Icons.archive_outlined,
         ),
       ],
-      selected: <RecurringListMode>{mode},
-      onSelectionChanged: (selection) {
-        onModeChanged(selection.first);
-      },
     );
   }
 }

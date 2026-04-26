@@ -13,9 +13,12 @@ class CategoryRepositoryImpl implements CategoryRepository {
   final Uuid _uuid = const Uuid();
 
   @override
-  Stream<List<domain.Category>> watchActiveCategories() {
+  Stream<List<domain.Category>> watchCategories({bool archivedOnly = false}) {
     final query = _database.select(_database.categories)
-      ..where((tbl) => tbl.deletedAt.isNull())
+      ..where(
+        (tbl) =>
+            archivedOnly ? tbl.deletedAt.isNotNull() : tbl.deletedAt.isNull(),
+      )
       ..orderBy(<OrderingTerm Function($CategoriesTable)>[
         (tbl) => OrderingTerm.asc(tbl.sortOrder),
         (tbl) => OrderingTerm.asc(tbl.name),
@@ -79,6 +82,21 @@ class CategoryRepositoryImpl implements CategoryRepository {
         isActive: const Value(false),
         updatedAt: Value(now),
         deletedAt: Value(now),
+      ),
+    );
+  }
+
+  @override
+  Future<void> restoreCategory(String id) async {
+    final DateTime now = DateTime.now();
+
+    await (_database.update(
+      _database.categories,
+    )..where((tbl) => tbl.id.equals(id))).write(
+      CategoriesCompanion(
+        isActive: const Value(true),
+        updatedAt: Value(now),
+        deletedAt: const Value(null),
       ),
     );
   }

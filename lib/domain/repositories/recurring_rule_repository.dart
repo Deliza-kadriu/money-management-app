@@ -5,7 +5,9 @@ import 'package:money_manager/domain/enums/transaction_type.dart';
 abstract class RecurringRuleRepository {
   Stream<List<RecurringRule>> watchRecurringRules({bool archivedOnly = false});
 
-  Future<void> createRecurringRule(CreateRecurringRuleInput input);
+  Future<List<RecurringRule>> getRecurringRules({bool archivedOnly = false});
+
+  Future<String> createRecurringRule(CreateRecurringRuleInput input);
 
   Future<void> updateRecurringRule(String id, UpdateRecurringRuleInput input);
 
