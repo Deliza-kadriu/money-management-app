@@ -1,0 +1,17 @@
+services:
+  flutter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: money-manager-flutter
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - flutter_pub_cache:/workspace/.pub-cache
+    stdin_open: true
+    tty: true
+    command: bash
+
+volumes:
+  flutter_pub_cache:
+

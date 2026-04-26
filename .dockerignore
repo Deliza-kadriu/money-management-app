@@ -1,0 +1,17 @@
+.dart_tool
+.idea
+.vscode
+.git
+.gitignore
+build
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache
+ios/Pods
+ios/.symlinks
+android/.gradle
+android/local.properties
+coverage
+*.iml
+
