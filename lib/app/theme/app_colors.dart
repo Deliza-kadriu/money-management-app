@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color seed = Color(0xFF0F766E);
-  static const Color primary = Color(0xFF115E59);
-  static const Color secondary = Color(0xFFD97706);
-  static const Color dashboardTop = Color(0xFFF4FAF8);
-  static const Color dashboardBottom = Color(0xFFF9F4EA);
-  static const Color positive = Color(0xFF15803D);
+  static const Color seed = Color(0xFF65BC66);
+
+  static const Color primary = Color(0xFF65BC66);
+  static const Color primaryDark = Color(0xFF255B33);
+
+  static const Color secondary = Color(0xFFFFD255);
+  static const Color secondaryDark = Color(0xFFB08F22);
+
+  static const Color dashboardTop = Color(0xFFF6FFF6);
+  static const Color dashboardBottom = Color(0xFFDFF7DF);
+
+  static const Color cardMint = Color(0xFFEAF9E8);
+  static const Color lightMint = Color(0xFFDFF7DF);
+
+  static const Color positive = Color(0xFF2F8F46);
   static const Color negative = Color(0xFFB91C1C);
+
+  static const Color textDark = Color(0xFF1F3D2B);
 }

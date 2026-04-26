@@ -523,78 +523,91 @@ class _TransactionCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        title: Text(
-          transaction.note.isEmpty
-              ? _transactionTitle(transaction.type)
-              : transaction.note,
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(subtitle),
-              if (attachmentCount > 0) ...<Widget>[
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const Icon(Icons.attach_file_rounded, size: 16),
-                    const SizedBox(width: 4),
-                    Text('$attachmentCount receipt image(s)'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    transaction.note.isEmpty
+                        ? _transactionTitle(transaction.type)
+                        : transaction.note,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(subtitle),
+                  if (attachmentCount > 0) ...<Widget>[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(Icons.attach_file_rounded, size: 16),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text('$attachmentCount receipt image(s)'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Text(
+                  amountLabel,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(color: amountColor),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${transaction.transactionDate.year}-${transaction.transactionDate.month.toString().padLeft(2, '0')}-${transaction.transactionDate.day.toString().padLeft(2, '0')}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) async {
+                    switch (value) {
+                      case 'edit':
+                        await onEdit?.call();
+                        break;
+                      case 'archive':
+                        await onArchive?.call();
+                        break;
+                      case 'restore':
+                        await onRestore?.call();
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => archivedOnly
+                      ? const <PopupMenuEntry<String>>[
+                    PopupMenuItem<String>(
+                      value: 'restore',
+                      child: Text('Restore'),
+                    ),
+                  ]
+                      : const <PopupMenuEntry<String>>[
+                    PopupMenuItem<String>(
+                      value: 'edit',
+                      child: Text('Edit'),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'archive',
+                      child: Text('Archive'),
+                    ),
                   ],
                 ),
               ],
-            ],
-          ),
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) async {
-            switch (value) {
-              case 'edit':
-                await onEdit?.call();
-                break;
-              case 'archive':
-                await onArchive?.call();
-                break;
-              case 'restore':
-                await onRestore?.call();
-                break;
-            }
-          },
-          itemBuilder: (context) => archivedOnly
-              ? const <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(
-                    value: 'restore',
-                    child: Text('Restore'),
-                  ),
-                ]
-              : const <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(value: 'edit', child: Text('Edit')),
-                  PopupMenuItem<String>(
-                    value: 'archive',
-                    child: Text('Archive'),
-                  ),
-                ],
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              Text(
-                amountLabel,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: amountColor),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${transaction.transactionDate.year}-${transaction.transactionDate.month.toString().padLeft(2, '0')}-${transaction.transactionDate.day.toString().padLeft(2, '0')}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -869,6 +882,7 @@ class _CreateTransactionSheetState
                             (option) => DropdownMenuItem<String?>(
                               value: option.category.id,
                               child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: <Widget>[
                                   Icon(
                                     option.isChild
@@ -877,7 +891,13 @@ class _CreateTransactionSheetState
                                     size: 18,
                                   ),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text(option.label)),
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: Text(
+                                      option.label,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
