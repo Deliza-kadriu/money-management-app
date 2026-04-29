@@ -16,6 +16,7 @@ class AppTheme {
       colorScheme: colorScheme,
 
       scaffoldBackgroundColor: AppColors.dashboardTop,
+      dividerColor: AppColors.lightMint,
 
       appBarTheme: const AppBarTheme(
         centerTitle: false,
@@ -29,7 +30,31 @@ class AppTheme {
         elevation: 0,
         color: Colors.white,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xFFE0EAE2)),
+        ),
+      ),
+
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      ),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textDark,
+          side: const BorderSide(color: AppColors.lightMint),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
       ),
 
       navigationBarTheme: NavigationBarThemeData(
@@ -52,11 +77,15 @@ class AppTheme {
         fillColor: Colors.white,
         hintStyle: TextStyle(color: AppColors.textDark.withValues(alpha: 0.45)),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFE0EAE2)),
+        ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -68,6 +97,7 @@ class AppTheme {
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        elevation: 2,
       ),
 
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -76,7 +106,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         ),
@@ -84,7 +114,7 @@ class AppTheme {
 
       textTheme: const TextTheme(
         headlineMedium: TextStyle(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
           color: AppColors.textDark,
         ),
         titleLarge: TextStyle(
@@ -95,7 +125,14 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: AppColors.textDark,
         ),
+        bodySmall: TextStyle(color: Color(0xFF627267)),
         bodyMedium: TextStyle(color: AppColors.textDark),
+      ),
+
+      listTileTheme: const ListTileThemeData(
+        iconColor: AppColors.primaryDark,
+        textColor: AppColors.textDark,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       ),
     );
   }
@@ -129,14 +166,35 @@ class AppTheme {
         color: AppColors.darkCard,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: AppColors.darkBorder),
+        ),
+      ),
+
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      ),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textLight,
+          side: const BorderSide(color: AppColors.darkBorder),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
 
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.darkCard,
-        indicatorColor: AppColors.primaryDark.withValues(alpha: 0.34),
+        indicatorColor: AppColors.darkElevated,
         labelTextStyle: const WidgetStatePropertyAll<TextStyle>(
           TextStyle(fontWeight: FontWeight.w600, color: AppColors.textLight),
         ),
@@ -154,15 +212,15 @@ class AppTheme {
         fillColor: AppColors.darkSurface,
         hintStyle: const TextStyle(color: AppColors.mutedLight),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppColors.darkBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -174,6 +232,7 @@ class AppTheme {
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        elevation: 2,
       ),
 
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -182,7 +241,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         ),
@@ -201,12 +260,14 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: AppColors.textLight,
         ),
+        bodySmall: TextStyle(color: AppColors.mutedLight),
         bodyMedium: TextStyle(color: AppColors.textLight),
       ),
 
       listTileTheme: const ListTileThemeData(
-        iconColor: AppColors.textLight,
+        iconColor: AppColors.mutedLight,
         textColor: AppColors.textLight,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       ),
     );
   }

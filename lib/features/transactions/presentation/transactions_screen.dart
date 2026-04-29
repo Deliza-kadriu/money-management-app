@@ -39,8 +39,6 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   final TextEditingController _minAmountController = TextEditingController();
   final TextEditingController _maxAmountController = TextEditingController();
   TransactionListMode _mode = TransactionListMode.active;
-  bool _showFilters = false;
-  TransactionType? _typeFilter;
   String? _accountFilter;
   String? _categoryFilter;
   TransactionDateFilter _dateFilter = TransactionDateFilter.thisMonth;
@@ -108,11 +106,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             displayedTransactions,
             categories ?? const <category_domain.Category>[],
           );
-          final Widget filterPanel;
+          final bool filtersReady = accounts != null && categories != null;
 
-          if (accounts != null && categories != null) {
+          if (filtersReady) {
             final List<_CategoryPickerOption> categoryOptions =
-                _categoryOptionsForFilter(categories);
+                _categoryOptionsForFilter(categories, _presentationTab);
             final String? effectiveAccountFilter = _resolveAccountFilter(
               accounts,
             );
@@ -124,57 +122,6 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               effectiveAccountFilter: effectiveAccountFilter,
               effectiveCategoryFilter: effectiveCategoryFilter,
             );
-
-            filterPanel = _TransactionFilterPanel(
-              typeFilter: _typeFilter,
-              accountFilter: effectiveAccountFilter,
-              categoryFilter: effectiveCategoryFilter,
-              dateFilter: _dateFilter,
-              minAmountController: _minAmountController,
-              maxAmountController: _maxAmountController,
-              customStartDate: _customStartDate,
-              customEndDate: _customEndDate,
-              accounts: accounts,
-              categoryOptions: categoryOptions,
-              hasActiveFilters: _hasActiveFilters,
-              onTypeChanged: (value) {
-                setState(() {
-                  _typeFilter = value;
-                  if (value == TransactionType.transfer) {
-                    _categoryFilter = null;
-                  }
-                });
-              },
-              onAccountChanged: (value) {
-                setState(() {
-                  _accountFilter = value;
-                });
-              },
-              onCategoryChanged: (value) {
-                setState(() {
-                  _categoryFilter = value;
-                });
-              },
-              onDateFilterChanged: (value) {
-                setState(() {
-                  _dateFilter = value;
-                });
-              },
-              onAmountChanged: () {
-                setState(() {});
-              },
-              onPickCustomRange: _pickCustomDateRange,
-              onClearCustomRange: () {
-                setState(() {
-                  _customStartDate = null;
-                  _customEndDate = null;
-                  _dateFilter = TransactionDateFilter.all;
-                });
-              },
-              onResetFilters: _resetFilters,
-            );
-          } else {
-            filterPanel = const LinearProgressIndicator();
           }
 
           Widget buildTransactionEntry(MoneyTransaction transaction) {
@@ -307,15 +254,14 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   SizedBox(
                     height: 54,
                     child: OutlinedButton(
-                      onPressed: () {
-                        setState(() {
-                          _showFilters = !_showFilters;
-                        });
-                      },
+                      onPressed: filtersReady
+                          ? () =>
+                                _openFiltersSheet(context, accounts, categories)
+                          : null,
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         side: BorderSide(
-                          color: _showFilters
+                          color: _hasActiveFilters
                               ? AppColors.primary
                               : isDark
                               ? AppColors.darkBorder
@@ -325,33 +271,51 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        backgroundColor: _showFilters
+                        backgroundColor: _hasActiveFilters
                             ? AppColors.primary.withValues(
                                 alpha: isDark ? 0.22 : 0.10,
                               )
                             : theme.cardColor,
                       ),
-                      child: Icon(
-                        _showFilters
-                            ? Icons.filter_alt_off_rounded
-                            : Icons.filter_alt_rounded,
-                        color: isDark
-                            ? AppColors.textLight
-                            : AppColors.textDark,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: <Widget>[
+                              Icon(
+                                Icons.tune_rounded,
+                                color: isDark
+                                    ? AppColors.textLight
+                                    : AppColors.textDark,
+                              ),
+                              if (_hasActiveFilters)
+                                Positioned(
+                                  right: -1,
+                                  top: -1,
+                                  child: Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Filter'),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-              if (_showFilters) ...<Widget>[
-                const SizedBox(height: 16),
-                filterPanel,
-              ],
               const SizedBox(height: 16),
               _TransactionInsightsCard(
                 transactions: filteredTransactions,
                 categories: categories ?? const <category_domain.Category>[],
-                typeFilter: _typeFilter,
                 presentationTab: _presentationTab,
                 hiddenExpenseLabels: _hiddenExpenseInsightLabels,
                 hiddenIncomeLabels: _hiddenIncomeInsightLabels,
@@ -423,10 +387,6 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
 
     return transactions
         .where((transaction) {
-          if (_typeFilter != null && transaction.type != _typeFilter) {
-            return false;
-          }
-
           if (_accountFilter != null &&
               transaction.accountId != _accountFilter &&
               transaction.destinationAccountId != _accountFilter) {
@@ -530,8 +490,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   }
 
   bool get _hasActiveFilters {
-    return _typeFilter != null ||
-        _accountFilter != null ||
+    return _accountFilter != null ||
         _categoryFilter != null ||
         _dateFilter != TransactionDateFilter.thisMonth ||
         _minAmountController.text.trim().isNotEmpty ||
@@ -612,33 +571,36 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     });
   }
 
-  CategoryType _categoryTypeForTransaction(TransactionType type) {
-    switch (type) {
-      case TransactionType.expense:
+  CategoryType? _categoryTypeForPresentationTab(
+    TransactionPresentationTab tab,
+  ) {
+    switch (tab) {
+      case TransactionPresentationTab.expense:
         return CategoryType.expense;
-      case TransactionType.income:
+      case TransactionPresentationTab.income:
         return CategoryType.income;
-      case TransactionType.transfer:
-        return CategoryType.expense;
+      case TransactionPresentationTab.allList:
+        return null;
     }
   }
 
   List<_CategoryPickerOption> _categoryOptionsForFilter(
     List<category_domain.Category> categories,
+    TransactionPresentationTab presentationTab,
   ) {
-    if (_typeFilter == TransactionType.transfer) {
-      return const <_CategoryPickerOption>[];
-    }
+    final CategoryType? categoryType = _categoryTypeForPresentationTab(
+      presentationTab,
+    );
 
     final List<category_domain.Category> filteredCategories = categories
         .where((category) {
-          if (_typeFilter == null) {
+          if (categoryType == null) {
             return category.type == CategoryType.expense ||
                 category.type == CategoryType.income ||
                 category.type == CategoryType.both;
           }
 
-          return category.type == _categoryTypeForTransaction(_typeFilter!) ||
+          return category.type == categoryType ||
               category.type == CategoryType.both;
         })
         .toList(growable: false);
@@ -723,19 +685,13 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
 
   void _resetFilters() {
     setState(() {
-      _showFilters = false;
-      _typeFilter = null;
       _accountFilter = null;
       _categoryFilter = null;
       _dateFilter = TransactionDateFilter.thisMonth;
-      _presentationTab = TransactionPresentationTab.expense;
-      _hiddenExpenseInsightLabels.clear();
-      _hiddenIncomeInsightLabels.clear();
       _customStartDate = null;
       _customEndDate = null;
       _minAmountController.clear();
       _maxAmountController.clear();
-      _searchController.clear();
     });
   }
 
@@ -759,6 +715,95 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               .createTransaction(input);
         },
       ),
+    );
+  }
+
+  Future<void> _openFiltersSheet(
+    BuildContext context,
+    List<account_domain.Account> accounts,
+    List<category_domain.Category> categories,
+  ) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final List<_CategoryPickerOption> categoryOptions =
+                _categoryOptionsForFilter(categories, _presentationTab);
+            final String? effectiveAccountFilter = _resolveAccountFilter(
+              accounts,
+            );
+            final String? effectiveCategoryFilter = _resolveCategoryFilter(
+              categoryOptions,
+            );
+
+            void updateFilters(VoidCallback update) {
+              setState(update);
+              setSheetState(() {});
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+                ),
+                child: SingleChildScrollView(
+                  child: _TransactionFilterPanel(
+                    accountFilter: effectiveAccountFilter,
+                    categoryFilter: effectiveCategoryFilter,
+                    dateFilter: _dateFilter,
+                    minAmountController: _minAmountController,
+                    maxAmountController: _maxAmountController,
+                    customStartDate: _customStartDate,
+                    customEndDate: _customEndDate,
+                    accounts: accounts,
+                    categoryOptions: categoryOptions,
+                    hasActiveFilters: _hasActiveFilters,
+                    onAccountChanged: (value) {
+                      updateFilters(() {
+                        _accountFilter = value;
+                      });
+                    },
+                    onCategoryChanged: (value) {
+                      updateFilters(() {
+                        _categoryFilter = value;
+                      });
+                    },
+                    onDateFilterChanged: (value) {
+                      updateFilters(() {
+                        _dateFilter = value;
+                      });
+                    },
+                    onAmountChanged: () {
+                      updateFilters(() {});
+                    },
+                    onPickCustomRange: () async {
+                      await _pickCustomDateRange();
+                      setSheetState(() {});
+                    },
+                    onClearCustomRange: () {
+                      updateFilters(() {
+                        _customStartDate = null;
+                        _customEndDate = null;
+                        _dateFilter = TransactionDateFilter.all;
+                      });
+                    },
+                    onResetFilters: () {
+                      _resetFilters();
+                      setSheetState(() {});
+                    },
+                    onClose: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -872,7 +917,6 @@ class _AppSearchField extends StatelessWidget {
 
 class _TransactionFilterPanel extends StatelessWidget {
   const _TransactionFilterPanel({
-    required this.typeFilter,
     required this.accountFilter,
     required this.categoryFilter,
     required this.dateFilter,
@@ -883,7 +927,6 @@ class _TransactionFilterPanel extends StatelessWidget {
     required this.accounts,
     required this.categoryOptions,
     required this.hasActiveFilters,
-    required this.onTypeChanged,
     required this.onAccountChanged,
     required this.onCategoryChanged,
     required this.onDateFilterChanged,
@@ -891,9 +934,9 @@ class _TransactionFilterPanel extends StatelessWidget {
     required this.onPickCustomRange,
     required this.onClearCustomRange,
     required this.onResetFilters,
+    required this.onClose,
   });
 
-  final TransactionType? typeFilter;
   final String? accountFilter;
   final String? categoryFilter;
   final TransactionDateFilter dateFilter;
@@ -904,7 +947,6 @@ class _TransactionFilterPanel extends StatelessWidget {
   final List<account_domain.Account> accounts;
   final List<_CategoryPickerOption> categoryOptions;
   final bool hasActiveFilters;
-  final ValueChanged<TransactionType?> onTypeChanged;
   final ValueChanged<String?> onAccountChanged;
   final ValueChanged<String?> onCategoryChanged;
   final ValueChanged<TransactionDateFilter> onDateFilterChanged;
@@ -912,192 +954,165 @@ class _TransactionFilterPanel extends StatelessWidget {
   final Future<void> Function() onPickCustomRange;
   final VoidCallback onClearCustomRange;
   final VoidCallback onResetFilters;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    'Filters',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                if (hasActiveFilters)
-                  TextButton.icon(
-                    onPressed: onResetFilters,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Reset'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<TransactionType?>(
-              key: ValueKey<String>('tx-type-$typeFilter'),
-              initialValue: typeFilter,
-              decoration: const InputDecoration(labelText: 'Type'),
-              items: const <DropdownMenuItem<TransactionType?>>[
-                DropdownMenuItem<TransactionType?>(
-                  value: null,
-                  child: Text('All types'),
-                ),
-                DropdownMenuItem<TransactionType?>(
-                  value: TransactionType.expense,
-                  child: Text('Expense'),
-                ),
-                DropdownMenuItem<TransactionType?>(
-                  value: TransactionType.income,
-                  child: Text('Income'),
-                ),
-                DropdownMenuItem<TransactionType?>(
-                  value: TransactionType.transfer,
-                  child: Text('Transfer'),
-                ),
-              ],
-              onChanged: onTypeChanged,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String?>(
-              key: ValueKey<String>(
-                'tx-account-${accountFilter ?? 'all'}-${accounts.length}',
+            Expanded(
+              child: Text(
+                'Filters',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              initialValue: accountFilter,
-              decoration: const InputDecoration(labelText: 'Account'),
-              items: <DropdownMenuItem<String?>>[
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text('All accounts'),
-                ),
-                ...accounts.map(
-                  (account) => DropdownMenuItem<String?>(
-                    value: account.id,
-                    child: Text(account.name),
-                  ),
-                ),
-              ],
-              onChanged: onAccountChanged,
             ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String?>(
-              key: ValueKey<String>(
-                'tx-category-${categoryFilter ?? 'all'}-${categoryOptions.length}-$typeFilter',
+            if (hasActiveFilters)
+              TextButton.icon(
+                onPressed: onResetFilters,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Reset'),
               ),
-              initialValue: categoryFilter,
-              decoration: InputDecoration(
-                labelText: 'Category',
-                helperText: typeFilter == TransactionType.transfer
-                    ? 'Transfers do not use categories.'
-                    : 'Select a parent or a child category.',
-              ),
-              items: <DropdownMenuItem<String?>>[
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text('All categories'),
-                ),
-                const DropdownMenuItem<String?>(
-                  value: _uncategorizedFilterValue,
-                  child: Text('Uncategorized'),
-                ),
-                ...categoryOptions.map(
-                  (option) => DropdownMenuItem<String?>(
-                    value: option.category.id,
-                    child: Text(
-                      option.isChild ? '↳ ${option.label}' : option.label,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
-              onChanged: typeFilter == TransactionType.transfer
-                  ? null
-                  : onCategoryChanged,
+            IconButton(
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+              tooltip: 'Close filters',
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: minAmountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(labelText: 'Min amount'),
-              onChanged: (_) => onAmountChanged(),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: maxAmountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(labelText: 'Max amount'),
-              onChanged: (_) => onAmountChanged(),
-            ),
-            const SizedBox(height: 12),
-            AppFilterChips<TransactionDateFilter>(
-              selected: dateFilter,
-              onChanged: onDateFilterChanged,
-              items: const <AppFilterChipItem<TransactionDateFilter>>[
-                AppFilterChipItem<TransactionDateFilter>(
-                  value: TransactionDateFilter.thisMonth,
-                  label: 'This month',
-                ),
-                AppFilterChipItem<TransactionDateFilter>(
-                  value: TransactionDateFilter.last30Days,
-                  label: 'Last 30 days',
-                ),
-                AppFilterChipItem<TransactionDateFilter>(
-                  value: TransactionDateFilter.all,
-                  label: 'All time',
-                ),
-                AppFilterChipItem<TransactionDateFilter>(
-                  value: TransactionDateFilter.custom,
-                  label: 'Custom',
-                ),
-              ],
-            ),
-            if (dateFilter == TransactionDateFilter.custom) ...<Widget>[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.lightMint.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      customStartDate == null || customEndDate == null
-                          ? 'Pick a custom date range'
-                          : '${_formatDate(customStartDate!)} to ${_formatDate(customEndDate!)}',
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        TextButton(
-                          onPressed: onPickCustomRange,
-                          child: const Text('Choose'),
-                        ),
-                        if (customStartDate != null || customEndDate != null)
-                          TextButton(
-                            onPressed: onClearCustomRange,
-                            child: const Text('Clear'),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
-      ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String?>(
+          key: ValueKey<String>(
+            'tx-account-${accountFilter ?? 'all'}-${accounts.length}',
+          ),
+          initialValue: accountFilter,
+          decoration: const InputDecoration(labelText: 'Account'),
+          items: <DropdownMenuItem<String?>>[
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('All accounts'),
+            ),
+            ...accounts.map(
+              (account) => DropdownMenuItem<String?>(
+                value: account.id,
+                child: Text(account.name),
+              ),
+            ),
+          ],
+          onChanged: onAccountChanged,
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String?>(
+          key: ValueKey<String>(
+            'tx-category-${categoryFilter ?? 'all'}-${categoryOptions.length}',
+          ),
+          initialValue: categoryFilter,
+          decoration: const InputDecoration(
+            labelText: 'Category',
+            helperText: 'Select a parent or a child category.',
+          ),
+          items: <DropdownMenuItem<String?>>[
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('All categories'),
+            ),
+            const DropdownMenuItem<String?>(
+              value: _uncategorizedFilterValue,
+              child: Text('Uncategorized'),
+            ),
+            ...categoryOptions.map(
+              (option) => DropdownMenuItem<String?>(
+                value: option.category.id,
+                child: Text(
+                  option.isChild ? '↳ ${option.label}' : option.label,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+          onChanged: onCategoryChanged,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: minAmountController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Min amount'),
+          onChanged: (_) => onAmountChanged(),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: maxAmountController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Max amount'),
+          onChanged: (_) => onAmountChanged(),
+        ),
+        const SizedBox(height: 12),
+        AppFilterChips<TransactionDateFilter>(
+          selected: dateFilter,
+          onChanged: onDateFilterChanged,
+          items: const <AppFilterChipItem<TransactionDateFilter>>[
+            AppFilterChipItem<TransactionDateFilter>(
+              value: TransactionDateFilter.thisMonth,
+              label: 'This month',
+            ),
+            AppFilterChipItem<TransactionDateFilter>(
+              value: TransactionDateFilter.last30Days,
+              label: 'Last 30 days',
+            ),
+            AppFilterChipItem<TransactionDateFilter>(
+              value: TransactionDateFilter.all,
+              label: 'All time',
+            ),
+            AppFilterChipItem<TransactionDateFilter>(
+              value: TransactionDateFilter.custom,
+              label: 'Custom',
+            ),
+          ],
+        ),
+        if (dateFilter == TransactionDateFilter.custom) ...<Widget>[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.lightMint.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  customStartDate == null || customEndDate == null
+                      ? 'Pick a custom date range'
+                      : '${_formatDate(customStartDate!)} to ${_formatDate(customEndDate!)}',
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: onPickCustomRange,
+                      child: const Text('Choose'),
+                    ),
+                    if (customStartDate != null || customEndDate != null)
+                      TextButton(
+                        onPressed: onClearCustomRange,
+                        child: const Text('Clear'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(onPressed: onClose, child: const Text('Done')),
+        ),
+      ],
     );
   }
 
@@ -1110,7 +1125,6 @@ class _TransactionInsightsCard extends StatelessWidget {
   const _TransactionInsightsCard({
     required this.transactions,
     required this.categories,
-    required this.typeFilter,
     required this.presentationTab,
     required this.hiddenExpenseLabels,
     required this.hiddenIncomeLabels,
@@ -1118,7 +1132,6 @@ class _TransactionInsightsCard extends StatelessWidget {
 
   final List<MoneyTransaction> transactions;
   final List<category_domain.Category> categories;
-  final TransactionType? typeFilter;
   final TransactionPresentationTab presentationTab;
   final Set<String> hiddenExpenseLabels;
   final Set<String> hiddenIncomeLabels;
@@ -1138,13 +1151,10 @@ class _TransactionInsightsCard extends StatelessWidget {
 
     final bool showExpense =
         presentationTab == TransactionPresentationTab.expense ||
-        (presentationTab == TransactionPresentationTab.allList &&
-            (typeFilter == null || typeFilter == TransactionType.expense));
+        presentationTab == TransactionPresentationTab.allList;
     final bool showIncome =
         presentationTab == TransactionPresentationTab.income ||
-        (presentationTab == TransactionPresentationTab.allList &&
-            (typeFilter == null || typeFilter == TransactionType.income));
-    final bool showTransferHint = typeFilter == TransactionType.transfer;
+        presentationTab == TransactionPresentationTab.allList;
 
     return Card(
       child: Padding(
@@ -1152,34 +1162,29 @@ class _TransactionInsightsCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            if (showTransferHint) ...<Widget>[
+            if (showExpense && expenseRows.isNotEmpty) ...<Widget>[
+              _TransactionPieSection(
+                title: 'Expense categories',
+                rows: expenseRows,
+                accentColor: AppColors.negative,
+                hiddenLabels: hiddenExpenseLabels,
+              ),
+            ],
+            if (showIncome && incomeRows.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 16),
+              _TransactionPieSection(
+                title: 'Income categories',
+                rows: incomeRows,
+                accentColor: AppColors.positive,
+                hiddenLabels: hiddenIncomeLabels,
+              ),
+            ],
+            if ((showExpense && expenseRows.isEmpty) &&
+                (showIncome && incomeRows.isEmpty)) ...<Widget>[
               const SizedBox(height: 12),
-              const Text('Transfers do not use category pies.'),
-            ] else ...<Widget>[
-              if (showExpense && expenseRows.isNotEmpty) ...<Widget>[
-                _TransactionPieSection(
-                  title: 'Expense categories',
-                  rows: expenseRows,
-                  accentColor: AppColors.negative,
-                  hiddenLabels: hiddenExpenseLabels,
-                ),
-              ],
-              if (showIncome && incomeRows.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 16),
-                _TransactionPieSection(
-                  title: 'Income categories',
-                  rows: incomeRows,
-                  accentColor: AppColors.positive,
-                  hiddenLabels: hiddenIncomeLabels,
-                ),
-              ],
-              if ((showExpense && expenseRows.isEmpty) &&
-                  (showIncome && incomeRows.isEmpty)) ...<Widget>[
-                const SizedBox(height: 12),
-                const Text(
-                  'No category data is available for this filtered view.',
-                ),
-              ],
+              const Text(
+                'No category data is available for this filtered view.',
+              ),
             ],
           ],
         ),

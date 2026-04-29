@@ -760,8 +760,8 @@ class _ReportBody extends StatelessWidget {
                     onPressed: onToggleFilters,
                     icon: Icon(
                       showFilters
-                          ? Icons.filter_alt_off_rounded
-                          : Icons.filter_alt_rounded,
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.tune_rounded,
                     ),
                     label: Text(showFilters ? 'Hide filters' : 'Show filters'),
                   ),
@@ -771,8 +771,9 @@ class _ReportBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        if (showFilters)
-          Card(
+        _FilterPanelReveal(
+          visible: showFilters,
+          child: Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -934,6 +935,7 @@ class _ReportBody extends StatelessWidget {
               ),
             ),
           ),
+        ),
         const SizedBox(height: 16),
         Card(
           child: Padding(
@@ -1098,6 +1100,36 @@ class _ReportBody extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return AppDateFormatter.format(date);
+  }
+}
+
+class _FilterPanelReveal extends StatelessWidget {
+  const _FilterPanelReveal({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 240),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        return SizeTransition(
+          sizeFactor: animation,
+          axisAlignment: -1,
+          child: FadeTransition(opacity: animation, child: child),
+        );
+      },
+      child: visible
+          ? Padding(
+              key: const ValueKey<String>('filters-open'),
+              padding: const EdgeInsets.only(top: 16),
+              child: child,
+            )
+          : const SizedBox(key: ValueKey<String>('filters-closed')),
+    );
   }
 }
 

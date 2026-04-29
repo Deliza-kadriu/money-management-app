@@ -56,40 +56,31 @@ class DashboardScreen extends ConsumerWidget {
                     onPressed: () => context.push('/settings'),
                     icon: const Icon(Icons.tune_rounded),
                     tooltip: 'Settings',
+                    style: IconButton.styleFrom(
+                      backgroundColor: Theme.of(context).cardColor,
+                      foregroundColor: isDark
+                          ? AppColors.textLight
+                          : AppColors.primaryDark,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
               Text(
                 AppStrings.appSubtitle,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: isDark
+                      ? AppColors.mutedLight
+                      : AppColors.textDark.withValues(alpha: 0.68),
+                ),
               ),
               const SizedBox(height: 20),
               summaryAsync.when(
-                data: (summary) => Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          'Total balance',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          CurrencyFormatter.formatMinorUnits(
-                            summary.totalBalanceMinor,
-                          ),
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Across ${summary.activeAccountsCount} active accounts',
-                        ),
-                      ],
-                    ),
+                data: (summary) => _BalanceCard(
+                  amountLabel: CurrencyFormatter.formatMinorUnits(
+                    summary.totalBalanceMinor,
                   ),
+                  accountCount: summary.activeAccountsCount,
                 ),
                 loading: () => const Card(
                   child: Padding(
@@ -155,10 +146,7 @@ class DashboardScreen extends ConsumerWidget {
                 loading: () => const SizedBox.shrink(),
                 error: (_, _) => const SizedBox.shrink(),
               ),
-              Text(
-                'Quick access',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              const _SectionHeader(title: 'Quick access'),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 12,
@@ -195,6 +183,15 @@ class DashboardScreen extends ConsumerWidget {
               Card(
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
+                  leading: CircleAvatar(
+                    backgroundColor: isDark
+                        ? AppColors.darkElevated
+                        : AppColors.lightMint,
+                    foregroundColor: isDark
+                        ? AppColors.textLight
+                        : AppColors.primaryDark,
+                    child: const Icon(Icons.event_repeat_rounded),
+                  ),
                   title: const Text('Recurring payments'),
                   subtitle: const Text(
                     'Manage subscriptions, rent, salary, and due reminders.',
@@ -206,10 +203,7 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
-                'Recent transactions',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              const _SectionHeader(title: 'Recent transactions'),
               const SizedBox(height: 12),
               recentTransactionsAsync.when(
                 data: (items) {
@@ -255,21 +249,27 @@ class _DashboardShortcutCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final double width = (MediaQuery.sizeOf(context).width - 44) / 2;
 
     return SizedBox(
       width: width,
       child: Card(
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           onTap: () => context.push(route),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: <Widget>[
                 CircleAvatar(
-                  backgroundColor: AppColors.lightMint,
-                  foregroundColor: AppColors.primaryDark,
+                  radius: 19,
+                  backgroundColor: isDark
+                      ? AppColors.darkElevated
+                      : AppColors.lightMint,
+                  foregroundColor: isDark
+                      ? AppColors.textLight
+                      : AppColors.primaryDark,
                   child: Icon(icon),
                 ),
                 const SizedBox(width: 12),
@@ -297,7 +297,7 @@ class _ActiveLoanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         onTap: () => context.push('/loans/${loan.id}'),
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -382,6 +382,82 @@ class _DashboardLoanMetric extends StatelessWidget {
   }
 }
 
+class _BalanceCard extends StatelessWidget {
+  const _BalanceCard({required this.amountLabel, required this.accountCount});
+
+  final String amountLabel;
+  final int accountCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color iconBackground = isDark
+        ? AppColors.darkElevated
+        : AppColors.cardMint;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Total balance',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FittedBox(
+                    alignment: Alignment.centerLeft,
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      amountLabel,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Across $accountCount active accounts',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isDark
+                          ? AppColors.mutedLight
+                          : AppColors.textDark.withValues(alpha: 0.66),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            CircleAvatar(
+              radius: 26,
+              backgroundColor: iconBackground,
+              foregroundColor: isDark
+                  ? AppColors.textLight
+                  : AppColors.primaryDark,
+              child: const Icon(Icons.account_balance_wallet_rounded),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(title, style: Theme.of(context).textTheme.titleLarge);
+  }
+}
+
 class _RecentTransactionTile extends StatelessWidget {
   const _RecentTransactionTile({required this.transaction});
 
@@ -413,11 +489,22 @@ class _RecentTransactionTile extends StatelessWidget {
       _ =>
         '${transaction.accountName} • ${transaction.childCategoryName ?? transaction.categoryName ?? 'Uncategorized'}',
     };
+    final IconData icon = switch (transaction.type) {
+      TransactionType.income => Icons.south_west_rounded,
+      TransactionType.expense => Icons.north_east_rounded,
+      TransactionType.transfer => Icons.swap_horiz_rounded,
+    };
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
+        leading: CircleAvatar(
+          backgroundColor: amountColor.withValues(alpha: isDark ? 0.18 : 0.12),
+          foregroundColor: amountColor,
+          child: Icon(icon, size: 20),
+        ),
         title: Text(
           transaction.note.isEmpty
               ? _titleFromType(transaction.type)

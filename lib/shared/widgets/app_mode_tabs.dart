@@ -30,9 +30,9 @@ class AppModeTabs<T> extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
     final Color containerColor = isDark
-        ? AppColors.darkCard
+        ? AppColors.darkSurface
         : AppColors.lightMint;
-    final Color selectedColor = isDark ? AppColors.darkSurface : Colors.white;
+    final Color selectedColor = isDark ? AppColors.darkElevated : Colors.white;
     final Color activeColor = isDark
         ? AppColors.textLight
         : AppColors.primaryDark;
@@ -45,7 +45,7 @@ class AppModeTabs<T> extends StatelessWidget {
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
         color: containerColor,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.lightMint,
           width: 1.2,
@@ -64,15 +64,15 @@ class AppModeTabs<T> extends StatelessWidget {
                 height: double.infinity,
                 decoration: BoxDecoration(
                   color: isSelected ? selectedColor : Colors.transparent,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: isSelected
                       ? <BoxShadow>[
                           BoxShadow(
                             color: Colors.black.withValues(
-                              alpha: isDark ? 0.18 : 0.10,
+                              alpha: isDark ? 0.14 : 0.08,
                             ),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
                         ]
                       : null,
