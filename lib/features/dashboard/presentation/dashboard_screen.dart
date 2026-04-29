@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:money_manager/app/theme/app_colors.dart';
 import 'package:money_manager/core/constants/app_strings.dart';
 import 'package:money_manager/core/utils/currency_formatter.dart';
+import 'package:money_manager/core/utils/date_formatter.dart';
+import 'package:money_manager/domain/entities/loan.dart';
 import 'package:money_manager/domain/entities/money_transaction.dart';
+import 'package:money_manager/domain/enums/loan_status.dart';
 import 'package:money_manager/domain/enums/transaction_type.dart';
 import 'package:money_manager/shared/providers/app_providers.dart';
 import 'package:money_manager/shared/widgets/summary_card.dart';
@@ -16,6 +19,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(dashboardSummaryProvider);
     final recentTransactionsAsync = ref.watch(recentTransactionsProvider);
+    final loansAsync = ref.watch(loansProvider);
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -129,6 +133,28 @@ class DashboardScreen extends ConsumerWidget {
                 error: (_, _) => const SizedBox.shrink(),
               ),
               const SizedBox(height: 20),
+              loansAsync.when(
+                data: (loans) {
+                  Loan? activeLoan;
+                  for (final loan in loans) {
+                    if (loan.status == LoanStatus.active) {
+                      activeLoan = loan;
+                      break;
+                    }
+                  }
+
+                  if (activeLoan == null) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: _ActiveLoanCard(loan: activeLoan),
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
+              ),
               Text(
                 'Quick access',
                 style: Theme.of(context).textTheme.titleLarge,
@@ -152,6 +178,11 @@ class DashboardScreen extends ConsumerWidget {
                     label: 'Recurring',
                     icon: Icons.repeat_rounded,
                     route: '/recurring',
+                  ),
+                  _DashboardShortcutCard(
+                    label: 'Loans',
+                    icon: Icons.home_work_rounded,
+                    route: '/loans',
                   ),
                   _DashboardShortcutCard(
                     label: 'Settings',
@@ -253,6 +284,100 @@ class _DashboardShortcutCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ActiveLoanCard extends StatelessWidget {
+  const _ActiveLoanCard({required this.loan});
+
+  final Loan loan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () => context.push('/loans/${loan.id}'),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      loan.loanName,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: () => context.push('/loans/${loan.id}'),
+                    child: const Text('Open'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text('${loan.bankName} • ${loan.loanType.label}'),
+              const SizedBox(height: 14),
+              LinearProgressIndicator(
+                value: loan.progressPercent,
+                minHeight: 10,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 18,
+                runSpacing: 10,
+                children: <Widget>[
+                  _DashboardLoanMetric(
+                    label: 'Monthly',
+                    value: CurrencyFormatter.formatMinorUnits(
+                      loan.monthlyPaymentMinor,
+                    ),
+                  ),
+                  _DashboardLoanMetric(
+                    label: 'Remaining',
+                    value: CurrencyFormatter.formatMinorUnits(
+                      loan.remainingBalanceMinor,
+                    ),
+                  ),
+                  _DashboardLoanMetric(
+                    label: 'Progress',
+                    value:
+                        '${loan.paidInstallments}/${loan.numberOfInstallments}',
+                  ),
+                  _DashboardLoanMetric(
+                    label: 'Started',
+                    value: AppDateFormatter.format(loan.startDate),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardLoanMetric extends StatelessWidget {
+  const _DashboardLoanMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        Text(value, style: Theme.of(context).textTheme.titleMedium),
+      ],
     );
   }
 }

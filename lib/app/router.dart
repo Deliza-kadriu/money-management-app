@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:money_manager/features/accounts/presentation/accounts_screen.dart';
 import 'package:money_manager/features/categories/presentation/categories_screen.dart';
 import 'package:money_manager/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:money_manager/features/loans/presentation/loans_screen.dart';
 import 'package:money_manager/features/recurring/presentation/recurring_rules_screen.dart';
 import 'package:money_manager/features/reports/presentation/reports_screen.dart';
 import 'package:money_manager/features/settings/presentation/settings_screen.dart';
@@ -62,6 +63,28 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/recurring',
       builder: (context, state) => const RecurringRulesScreen(),
+    ),
+    GoRoute(
+      path: '/loans',
+      builder: (context, state) => const LoansScreen(),
+      routes: <RouteBase>[
+        GoRoute(
+          path: 'new',
+          builder: (context, state) => const AddLoanScreen(),
+        ),
+        GoRoute(
+          path: ':loanId',
+          builder: (context, state) =>
+              LoanDetailsScreen(loanId: state.pathParameters['loanId']!),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'edit',
+              builder: (context, state) =>
+                  AddLoanScreen(loanId: state.pathParameters['loanId']!),
+            ),
+          ],
+        ),
+      ],
     ),
     GoRoute(
       path: '/settings',

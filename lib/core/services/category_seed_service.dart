@@ -95,7 +95,7 @@ final List<_SeedParentCategory> _defaultCategories = <_SeedParentCategory>[
     type: CategoryType.expense,
     iconKey: 'car',
     colorValue: CategoryVisuals.palette[1],
-    children: <String>['Gas', 'Maintenance', 'Parking', 'Public Transport'],
+    children: <String>['Gas', 'Maintenance', 'Parking', 'Public Transport', 'New Car'],
   ),
   _SeedParentCategory(
     id: 'seed-home',
@@ -103,7 +103,7 @@ final List<_SeedParentCategory> _defaultCategories = <_SeedParentCategory>[
     type: CategoryType.expense,
     iconKey: 'home',
     colorValue: CategoryVisuals.palette[2],
-    children: <String>['Rent', 'Utilities', 'Internet', 'Repairs'],
+    children: <String>['Rent', 'Utilities', 'Internet', 'Repairs', 'New Home', 'Renovation'],
   ),
   _SeedParentCategory(
     id: 'seed-shopping',
@@ -127,7 +127,7 @@ final List<_SeedParentCategory> _defaultCategories = <_SeedParentCategory>[
     type: CategoryType.expense,
     iconKey: 'category',
     colorValue: CategoryVisuals.palette[5],
-    children: <String>['Hotel', 'Flight', 'Transport', 'Activities'],
+    children: <String>['Hotel', 'Flight', 'Transport', 'Activities', 'Spain', 'Vacation'],
   ),
   _SeedParentCategory(
     id: 'seed-entertainment',
@@ -135,7 +135,7 @@ final List<_SeedParentCategory> _defaultCategories = <_SeedParentCategory>[
     type: CategoryType.expense,
     iconKey: 'category',
     colorValue: CategoryVisuals.palette[0],
-    children: <String>['Movies / Events', 'Subscriptions', 'Games', 'Hobbies'],
+    children: <String>['Movies / Events', 'Subscriptions', 'Games', 'Hobbies', 'Night Out'],
   ),
   _SeedParentCategory(
     id: 'seed-family-friends',
@@ -175,7 +175,7 @@ final List<_SeedParentCategory> _defaultCategories = <_SeedParentCategory>[
     type: CategoryType.expense,
     iconKey: 'salary',
     colorValue: CategoryVisuals.palette[5],
-    children: <String>['Loan Payment', 'Credit Card', 'Fees'],
+    children: <String>['Loan Payment', 'Credit Card', 'Fees', 'Giving Loan', 'Loan Return'],
   ),
   _SeedParentCategory(
     id: 'seed-income',
@@ -183,7 +183,16 @@ final List<_SeedParentCategory> _defaultCategories = <_SeedParentCategory>[
     type: CategoryType.income,
     iconKey: 'salary',
     colorValue: CategoryVisuals.palette[0],
-    children: <String>['Salary', 'Freelance', 'Bonus', 'Refund'],
+    children: <String>[
+      'Salary',
+      'Freelance',
+      'Bonus',
+      'Refund',
+      'Loan Received',
+      'Loan Return',
+      'Loan Investment',
+      'Home Reimbursement',
+    ],
   ),
   _SeedParentCategory(
     id: 'seed-other',
@@ -194,3 +203,4 @@ final List<_SeedParentCategory> _defaultCategories = <_SeedParentCategory>[
     children: <String>['Uncategorized', 'Cash Withdrawal', 'Miscellaneous'],
   ),
 ];
+

@@ -10,12 +10,16 @@ import 'package:money_manager/core/services/recurring_rule_processor.dart';
 import 'package:money_manager/data/local/db/app_database.dart';
 import 'package:money_manager/data/repositories/account_repository_impl.dart';
 import 'package:money_manager/data/repositories/category_repository_impl.dart';
+import 'package:money_manager/data/repositories/loan_repository_impl.dart';
 import 'package:money_manager/data/repositories/recurring_rule_repository_impl.dart';
 import 'package:money_manager/data/repositories/transaction_repository_impl.dart';
 import 'package:money_manager/domain/entities/account.dart' as domain;
 import 'package:money_manager/domain/entities/app_settings.dart';
 import 'package:money_manager/domain/entities/category.dart' as category_domain;
 import 'package:money_manager/domain/entities/dashboard_summary.dart';
+import 'package:money_manager/domain/entities/loan.dart' as loan_domain;
+import 'package:money_manager/domain/entities/loan_details.dart'
+    as loan_details_domain;
 import 'package:money_manager/domain/entities/money_transaction.dart'
     as transaction_domain;
 import 'package:money_manager/domain/entities/recurring_rule.dart'
@@ -24,6 +28,7 @@ import 'package:money_manager/domain/entities/recurring_rule_run.dart'
     as recurring_run_domain;
 import 'package:money_manager/domain/repositories/account_repository.dart';
 import 'package:money_manager/domain/repositories/category_repository.dart';
+import 'package:money_manager/domain/repositories/loan_repository.dart';
 import 'package:money_manager/domain/repositories/recurring_rule_repository.dart';
 import 'package:money_manager/domain/repositories/transaction_repository.dart';
 import 'package:money_manager/shared/providers/app_settings_provider.dart';
@@ -118,6 +123,12 @@ final recurringRuleRepositoryProvider = Provider<RecurringRuleRepository>((
   return RecurringRuleRepositoryImpl(database);
 });
 
+final loanRepositoryProvider = Provider<LoanRepository>((ref) {
+  final database = ref.watch(appDatabaseProvider);
+  final transactionRepository = ref.watch(transactionRepositoryProvider);
+  return LoanRepositoryImpl(database, transactionRepository);
+});
+
 final accountsProvider = StreamProvider<List<domain.Account>>((ref) {
   final repository = ref.watch(accountRepositoryProvider);
   return repository.watchAccounts();
@@ -178,4 +189,18 @@ final recurringSuggestionsProvider =
     StreamProvider<List<recurring_run_domain.RecurringRuleRun>>((ref) {
       final processor = ref.watch(recurringRuleProcessorProvider);
       return processor.watchPendingSuggestions();
+    });
+
+final loansProvider = StreamProvider<List<loan_domain.Loan>>((ref) {
+  final repository = ref.watch(loanRepositoryProvider);
+  return repository.watchLoans();
+});
+
+final loanDetailsProvider =
+    StreamProvider.family<loan_details_domain.LoanDetails?, String>((
+      ref,
+      loanId,
+    ) {
+      final repository = ref.watch(loanRepositoryProvider);
+      return repository.watchLoanDetails(loanId);
     });

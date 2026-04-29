@@ -48,6 +48,15 @@ class DataBackupService {
       decoded['transactions'],
       db.Transaction.fromJson,
     );
+    final List<db.Loan> loans = _decodeRows<db.Loan>(
+      decoded['loans'],
+      db.Loan.fromJson,
+    );
+    final List<db.LoanInstallment> loanInstallments =
+        _decodeRows<db.LoanInstallment>(
+          decoded['loanInstallments'],
+          db.LoanInstallment.fromJson,
+        );
     final List<db.TransactionAttachment> attachments =
         _decodeRows<db.TransactionAttachment>(
           decoded['transactionAttachments'],
@@ -62,7 +71,9 @@ class DataBackupService {
     await _database.transaction(() async {
       await _database.delete(_database.recurringRuleRuns).go();
       await _database.delete(_database.transactionAttachments).go();
+      await _database.delete(_database.loanInstallments).go();
       await _database.delete(_database.transactions).go();
+      await _database.delete(_database.loans).go();
       await _database.delete(_database.recurringRules).go();
       await _database.delete(_database.categories).go();
       await _database.delete(_database.accounts).go();
@@ -85,6 +96,16 @@ class DataBackupService {
       if (transactions.isNotEmpty) {
         await _database.batch((batch) {
           batch.insertAll(_database.transactions, transactions);
+        });
+      }
+      if (loans.isNotEmpty) {
+        await _database.batch((batch) {
+          batch.insertAll(_database.loans, loans);
+        });
+      }
+      if (loanInstallments.isNotEmpty) {
+        await _database.batch((batch) {
+          batch.insertAll(_database.loanInstallments, loanInstallments);
         });
       }
       if (attachments.isNotEmpty) {
@@ -122,6 +143,10 @@ class DataBackupService {
     final List<db.Transaction> transactions = await _database
         .select(_database.transactions)
         .get();
+    final List<db.Loan> loans = await _database.select(_database.loans).get();
+    final List<db.LoanInstallment> loanInstallments = await _database
+        .select(_database.loanInstallments)
+        .get();
     final List<db.TransactionAttachment> attachments = await _database
         .select(_database.transactionAttachments)
         .get();
@@ -143,6 +168,10 @@ class DataBackupService {
           .map((row) => row.toJson())
           .toList(growable: false),
       'transactions': transactions
+          .map((row) => row.toJson())
+          .toList(growable: false),
+      'loans': loans.map((row) => row.toJson()).toList(growable: false),
+      'loanInstallments': loanInstallments
           .map((row) => row.toJson())
           .toList(growable: false),
       'transactionAttachments': attachments
@@ -188,6 +217,8 @@ class DataBackupService {
       'accounts',
       'categories',
       'transactions',
+      'loans',
+      'loanInstallments',
       'transactionAttachments',
       'recurringRules',
       'recurringRuleRuns',

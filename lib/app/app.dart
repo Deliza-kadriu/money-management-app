@@ -30,7 +30,7 @@ class _MoneyManagerAppState extends ConsumerState<MoneyManagerApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      Future<void>.microtask(_refreshRecurringServices);
+      Future<void>.microtask(_refreshAppServices);
     }
   }
 
@@ -47,22 +47,24 @@ class _MoneyManagerAppState extends ConsumerState<MoneyManagerApp>
       if (settings.notificationsEnabled) {
         await notificationService.initialize();
       }
-      await _refreshRecurringServices();
+      await _refreshAppServices();
     } catch (error) {
       debugPrint('App startup initialization skipped: $error');
     }
   }
 
-  Future<void> _refreshRecurringServices() async {
+  Future<void> _refreshAppServices() async {
     try {
       final recurringProcessor = ref.read(recurringRuleProcessorProvider);
       final recurringReminderService = ref.read(
         recurringReminderServiceProvider,
       );
+      final loanRepository = ref.read(loanRepositoryProvider);
       await recurringProcessor.processDueRules(notifyWhenWorkFound: false);
+      await loanRepository.processDueInstallments();
       await recurringReminderService.syncActiveReminders();
     } catch (error) {
-      debugPrint('Recurring refresh skipped: $error');
+      debugPrint('App background refresh skipped: $error');
     }
   }
 
