@@ -22,6 +22,8 @@ class CreateAccountInput {
     required this.colorValue,
     required this.iconKey,
     this.isActive = true,
+    this.excludeFromTotals = false,
+    this.isDefault = false,
   });
 
   final String name;
@@ -31,6 +33,8 @@ class CreateAccountInput {
   final int colorValue;
   final String iconKey;
   final bool isActive;
+  final bool excludeFromTotals;
+  final bool isDefault;
 }
 
 class UpdateAccountInput {
@@ -41,6 +45,8 @@ class UpdateAccountInput {
     required this.colorValue,
     required this.iconKey,
     required this.isActive,
+    required this.excludeFromTotals,
+    required this.isDefault,
   });
 
   final String name;
@@ -49,4 +55,6 @@ class UpdateAccountInput {
   final int colorValue;
   final String iconKey;
   final bool isActive;
+  final bool excludeFromTotals;
+  final bool isDefault;
 }

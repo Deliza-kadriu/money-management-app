@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:money_manager/core/services/app_settings_service.dart';
 import 'package:money_manager/core/services/category_seed_service.dart';
+import 'package:money_manager/core/services/data_backup_service.dart';
 import 'package:money_manager/core/services/excel_export_service.dart';
+import 'package:money_manager/core/services/myfinance_import_service.dart';
 import 'package:money_manager/core/services/notification_service.dart';
 import 'package:money_manager/core/services/recurring_reminder_service.dart';
 import 'package:money_manager/core/services/recurring_rule_processor.dart';
@@ -38,6 +40,17 @@ final excelExportServiceProvider = Provider<ExcelExportService>((ref) {
 
 final appSettingsServiceProvider = Provider<AppSettingsService>((ref) {
   return AppSettingsService();
+});
+
+final dataBackupServiceProvider = Provider<DataBackupService>((ref) {
+  final database = ref.watch(appDatabaseProvider);
+  final settingsService = ref.watch(appSettingsServiceProvider);
+  return DataBackupService(database, settingsService);
+});
+
+final myFinanceImportServiceProvider = Provider<MyFinanceImportService>((ref) {
+  final database = ref.watch(appDatabaseProvider);
+  return MyFinanceImportService(database);
 });
 
 final categorySeedServiceProvider = Provider<CategorySeedService>((ref) {

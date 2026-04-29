@@ -32,6 +32,10 @@ class AppSettingsService {
     return settings;
   }
 
+  Future<AppSettings> saveFromJson(Map<String, Object?> json) {
+    return save(AppSettings.fromJson(json));
+  }
+
   Future<File> _settingsFile() async {
     final Directory directory = await getApplicationDocumentsDirectory();
     return File(p.join(directory.path, 'app_settings.json'));

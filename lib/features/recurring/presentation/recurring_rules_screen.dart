@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:money_manager/core/utils/date_formatter.dart';
 import 'package:money_manager/core/utils/currency_formatter.dart';
 import 'package:money_manager/domain/entities/recurring_rule.dart';
 import 'package:money_manager/domain/entities/recurring_rule_run.dart';
@@ -267,15 +268,13 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
           final String ruleId = await ref
               .read(recurringRuleRepositoryProvider)
               .createRecurringRule(input);
-          await ref
-              .read(recurringReminderServiceProvider)
-              .scheduleForInput(
-                ruleId: ruleId,
-                title: input.title,
-                type: input.type,
-                nextDueDate: input.nextDueDate,
-                reminderDaysBefore: input.reminderDaysBefore,
-              );
+          await _afterRuleSaved(
+            ruleId: ruleId,
+            title: input.title,
+            type: input.type,
+            nextDueDate: input.nextDueDate,
+            reminderDaysBefore: input.reminderDaysBefore,
+          );
         },
       ),
     );
@@ -297,18 +296,38 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
           await ref
               .read(recurringRuleRepositoryProvider)
               .updateRecurringRule(rule.id, input);
-          await ref
-              .read(recurringReminderServiceProvider)
-              .scheduleForInput(
-                ruleId: rule.id,
-                title: input.title,
-                type: input.type,
-                nextDueDate: input.nextDueDate,
-                reminderDaysBefore: input.reminderDaysBefore,
-              );
+          await _afterRuleSaved(
+            ruleId: rule.id,
+            title: input.title,
+            type: input.type,
+            nextDueDate: input.nextDueDate,
+            reminderDaysBefore: input.reminderDaysBefore,
+          );
         },
       ),
     );
+  }
+
+  Future<void> _afterRuleSaved({
+    required String ruleId,
+    required String title,
+    required TransactionType type,
+    required DateTime nextDueDate,
+    required int reminderDaysBefore,
+  }) async {
+    await ref
+        .read(recurringReminderServiceProvider)
+        .scheduleForInput(
+          ruleId: ruleId,
+          title: title,
+          type: type,
+          nextDueDate: nextDueDate,
+          reminderDaysBefore: reminderDaysBefore,
+        );
+    await ref
+        .read(recurringRuleProcessorProvider)
+        .processDueRules(notifyWhenWorkFound: false);
+    await ref.read(recurringReminderServiceProvider).syncActiveReminders();
   }
 
   Future<void> _processDueRules() async {
@@ -381,7 +400,7 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
   }
 
   String _dateLabel(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return AppDateFormatter.format(date);
   }
 }
 
@@ -524,7 +543,7 @@ class _CreateRecurringRuleSheetState
   DateTime _selectedStartDate = DateTime.now();
   DateTime _selectedNextDueDate = DateTime.now();
   int _reminderDaysBefore = 0;
-  bool _autoCreate = false;
+  bool _autoCreate = true;
   bool _isSaving = false;
   bool get _isEditing => widget.rule != null;
 
@@ -863,7 +882,7 @@ class _CreateRecurringRuleSheetState
                   },
                   title: const Text('Auto-create transaction'),
                   subtitle: const Text(
-                    'For MVP, rules are still mainly reminders.',
+                    'Create the transaction automatically when the rule becomes due.',
                   ),
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -1027,9 +1046,7 @@ class _DateField extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            Text(
-              '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}',
-            ),
+            Text(AppDateFormatter.format(value)),
             const Icon(Icons.calendar_today_rounded, size: 18),
           ],
         ),

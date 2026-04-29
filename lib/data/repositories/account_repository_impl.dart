@@ -31,10 +31,12 @@ class AccountRepositoryImpl implements AccountRepository {
   @override
   Future<void> createAccount(CreateAccountInput input) async {
     final DateTime now = DateTime.now();
+    await _database.transaction(() async {
+      if (input.isDefault) {
+        await _clearDefaultAccount();
+      }
 
-    await _database
-        .into(_database.accounts)
-        .insert(
+      await _database.into(_database.accounts).insert(
           AccountsCompanion.insert(
             id: _uuid.v4(),
             name: input.name.trim(),
@@ -45,29 +47,39 @@ class AccountRepositoryImpl implements AccountRepository {
             colorValue: input.colorValue,
             iconKey: Value(input.iconKey),
             isActive: Value(input.isActive),
+            excludeFromTotals: Value(input.excludeFromTotals),
+            isDefault: Value(input.isDefault),
             createdAt: now,
             updatedAt: now,
           ),
         );
+    });
   }
 
   @override
   Future<void> updateAccount(String id, UpdateAccountInput input) async {
     final DateTime now = DateTime.now();
+    await _database.transaction(() async {
+      if (input.isDefault) {
+        await _clearDefaultAccount(exceptId: id);
+      }
 
-    await (_database.update(
-      _database.accounts,
-    )..where((tbl) => tbl.id.equals(id))).write(
-      AccountsCompanion(
-        name: Value(input.name.trim()),
-        type: Value(input.type.name),
-        currencyCode: Value(input.currencyCode),
-        colorValue: Value(input.colorValue),
-        iconKey: Value(input.iconKey),
-        isActive: Value(input.isActive),
-        updatedAt: Value(now),
-      ),
-    );
+      await (_database.update(
+        _database.accounts,
+      )..where((tbl) => tbl.id.equals(id))).write(
+        AccountsCompanion(
+          name: Value(input.name.trim()),
+          type: Value(input.type.name),
+          currencyCode: Value(input.currencyCode),
+          colorValue: Value(input.colorValue),
+          iconKey: Value(input.iconKey),
+          isActive: Value(input.isActive),
+          excludeFromTotals: Value(input.excludeFromTotals),
+          isDefault: Value(input.isDefault),
+          updatedAt: Value(now),
+        ),
+      );
+    });
   }
 
   @override
@@ -118,6 +130,25 @@ class AccountRepositoryImpl implements AccountRepository {
       color: AccountVisuals.colorFromValue(row.colorValue),
       icon: AccountVisuals.iconFromKey(row.iconKey),
       isActive: row.isActive,
+      excludeFromTotals: row.excludeFromTotals,
+      isDefault: row.isDefault,
+    );
+  }
+
+  Future<void> _clearDefaultAccount({String? exceptId}) async {
+    final update = _database.update(_database.accounts)
+      ..where((tbl) {
+        final base = tbl.isDefault.equals(true);
+        if (exceptId == null) {
+          return base;
+        }
+        return base & tbl.id.isNotValue(exceptId);
+      });
+
+    await update.write(
+      const AccountsCompanion(
+        isDefault: Value(false),
+      ),
     );
   }
 }

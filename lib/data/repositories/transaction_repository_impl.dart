@@ -48,7 +48,9 @@ class TransactionRepositoryImpl implements TransactionRepository {
       DashboardSummary
     >(_watchActiveAccountRows(), watchTransactions(), (accounts, transactions) {
       final DateTime now = DateTime.now();
-      final int totalBalanceMinor = accounts.fold<int>(
+      final int totalBalanceMinor = accounts
+          .where((account) => !account.excludeFromTotals)
+          .fold<int>(
         0,
         (sum, account) => sum + account.currentBalanceMinor,
       );

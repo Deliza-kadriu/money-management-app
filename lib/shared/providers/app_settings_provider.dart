@@ -13,6 +13,8 @@ class AppSettingsController extends StateNotifier<AsyncValue<AppSettings>> {
     state = await AsyncValue.guard(_service.load);
   }
 
+  Future<void> reload() => _load();
+
   Future<void> updateBaseCurrencyCode(String value) async {
     final AppSettings current =
         state.valueOrNull ?? const AppSettings.defaults();
@@ -33,6 +35,14 @@ class AppSettingsController extends StateNotifier<AsyncValue<AppSettings>> {
     final AppSettings current =
         state.valueOrNull ?? const AppSettings.defaults();
     final AppSettings next = current.copyWith(reminderLeadDays: value);
+    state = AsyncValue.data(next);
+    state = await AsyncValue.guard(() => _service.save(next));
+  }
+
+  Future<void> updateThemePreference(AppThemePreference value) async {
+    final AppSettings current =
+        state.valueOrNull ?? const AppSettings.defaults();
+    final AppSettings next = current.copyWith(themePreference: value);
     state = AsyncValue.data(next);
     state = await AsyncValue.guard(() => _service.save(next));
   }

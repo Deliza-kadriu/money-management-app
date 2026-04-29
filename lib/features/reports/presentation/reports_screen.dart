@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:money_manager/core/services/excel_export_service.dart';
+import 'package:money_manager/core/utils/date_formatter.dart';
 import 'package:money_manager/core/utils/currency_formatter.dart';
 import 'package:money_manager/domain/entities/account.dart';
 import 'package:money_manager/domain/entities/category.dart' as category_domain;
@@ -14,6 +16,8 @@ import 'package:money_manager/shared/widgets/app_filter_chips.dart';
 import 'package:share_plus/share_plus.dart';
 
 enum ReportPeriod { thisMonth, last30Days, allTime, custom }
+
+const String _uncategorizedReportFilterValue = '__uncategorized__';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -270,12 +274,20 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
     int incomeMinor = 0;
     int expenseMinor = 0;
+    int transferMinor = 0;
+    final Map<String, int> incomeCategoryMap = <String, int>{};
     final Map<String, int> categorySpendMap = <String, int>{};
 
     for (final tx in filteredTransactions) {
       switch (tx.type) {
         case TransactionType.income:
           incomeMinor += tx.amountMinor;
+          final String label = _transactionCategoryLabel(tx);
+          incomeCategoryMap.update(
+            label,
+            (value) => value + tx.amountMinor,
+            ifAbsent: () => tx.amountMinor,
+          );
           break;
         case TransactionType.expense:
           expenseMinor += tx.amountMinor;
@@ -287,12 +299,22 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           );
           break;
         case TransactionType.transfer:
+          transferMinor += tx.amountMinor;
           break;
       }
     }
 
-    final categoryRows =
+    final expenseCategoryRows =
         categorySpendMap.entries
+            .map(
+              (entry) =>
+                  _CategoryRow(label: entry.key, amountMinor: entry.value),
+            )
+            .toList(growable: false)
+          ..sort((a, b) => b.amountMinor.compareTo(a.amountMinor));
+
+    final incomeCategoryRows =
+        incomeCategoryMap.entries
             .map(
               (entry) =>
                   _CategoryRow(label: entry.key, amountMinor: entry.value),
@@ -315,8 +337,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       transactions: filteredTransactions,
       incomeMinor: incomeMinor,
       expenseMinor: expenseMinor,
+      transferMinor: transferMinor,
       netMinor: incomeMinor - expenseMinor,
-      categoryRows: categoryRows,
+      categoryRows: <_CategoryRow>[
+        ...expenseCategoryRows,
+        ...incomeCategoryRows,
+      ],
+      expenseCategoryRows: expenseCategoryRows,
+      incomeCategoryRows: incomeCategoryRows,
       accountRows: accountRows,
       categoryOptions: _categoryOptionsForFilter(categories),
     );
@@ -347,7 +375,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   String _dateLabel(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return AppDateFormatter.format(date);
   }
 
   List<MoneyTransaction> _filterTransactions({
@@ -444,6 +472,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   bool _matchesCategoryFilter(MoneyTransaction transaction, String categoryId) {
+    if (categoryId == _uncategorizedReportFilterValue) {
+      return transaction.categoryId == null &&
+          transaction.childCategoryId == null;
+    }
+
     if (transaction.childCategoryId == categoryId) {
       return true;
     }
@@ -463,6 +496,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   String? _resolveCategoryFilter(List<_CategoryPickerOption> categoryOptions) {
     if (_categoryFilter == null) {
       return null;
+    }
+
+    if (_categoryFilter == _uncategorizedReportFilterValue) {
+      return _categoryFilter;
     }
 
     final bool exists = categoryOptions.any(
@@ -671,47 +708,67 @@ class _ReportBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<Account> sortedAccounts = [...accounts]
       ..sort((a, b) => b.currentBalanceMinor.compareTo(a.currentBalanceMinor));
+    final List<Account> visibleAccounts = sortedAccounts
+        .where((account) => !account.excludeFromTotals)
+        .toList(growable: false);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: AppFilterChips<ReportPeriod>(
-                selected: period,
-                onChanged: onPeriodChanged,
-                items: const <AppFilterChipItem<ReportPeriod>>[
-                  AppFilterChipItem<ReportPeriod>(
-                    value: ReportPeriod.thisMonth,
-                    label: 'This month',
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Reports overview',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${snapshot.transactions.length} transaction(s) in this view',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                AppFilterChips<ReportPeriod>(
+                  selected: period,
+                  onChanged: onPeriodChanged,
+                  items: const <AppFilterChipItem<ReportPeriod>>[
+                    AppFilterChipItem<ReportPeriod>(
+                      value: ReportPeriod.thisMonth,
+                      label: 'This month',
+                    ),
+                    AppFilterChipItem<ReportPeriod>(
+                      value: ReportPeriod.last30Days,
+                      label: 'Last 30 days',
+                    ),
+                    AppFilterChipItem<ReportPeriod>(
+                      value: ReportPeriod.allTime,
+                      label: 'All time',
+                    ),
+                    AppFilterChipItem<ReportPeriod>(
+                      value: ReportPeriod.custom,
+                      label: 'Custom',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: onToggleFilters,
+                    icon: Icon(
+                      showFilters
+                          ? Icons.filter_alt_off_rounded
+                          : Icons.filter_alt_rounded,
+                    ),
+                    label: Text(showFilters ? 'Hide filters' : 'Show filters'),
                   ),
-                  AppFilterChipItem<ReportPeriod>(
-                    value: ReportPeriod.last30Days,
-                    label: 'Last 30 days',
-                  ),
-                  AppFilterChipItem<ReportPeriod>(
-                    value: ReportPeriod.allTime,
-                    label: 'All time',
-                  ),
-                  AppFilterChipItem<ReportPeriod>(
-                    value: ReportPeriod.custom,
-                    label: 'Custom',
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            OutlinedButton.icon(
-              onPressed: onToggleFilters,
-              icon: Icon(
-                showFilters
-                    ? Icons.filter_alt_off_rounded
-                    : Icons.filter_alt_rounded,
-              ),
-              label: Text(showFilters ? 'Hide filters' : 'Filters'),
-            ),
-          ],
+          ),
         ),
         const SizedBox(height: 16),
         if (showFilters)
@@ -738,60 +795,50 @@ class _ReportBody extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: DropdownButtonFormField<TransactionType?>(
-                          key: ValueKey<String>('report-type-$typeFilter'),
-                          initialValue: typeFilter,
-                          decoration: const InputDecoration(labelText: 'Type'),
-                          items: const <DropdownMenuItem<TransactionType?>>[
-                            DropdownMenuItem<TransactionType?>(
-                              value: null,
-                              child: Text('All types'),
-                            ),
-                            DropdownMenuItem<TransactionType?>(
-                              value: TransactionType.expense,
-                              child: Text('Expense'),
-                            ),
-                            DropdownMenuItem<TransactionType?>(
-                              value: TransactionType.income,
-                              child: Text('Income'),
-                            ),
-                            DropdownMenuItem<TransactionType?>(
-                              value: TransactionType.transfer,
-                              child: Text('Transfer'),
-                            ),
-                          ],
-                          onChanged: onTypeChanged,
-                        ),
+                  DropdownButtonFormField<TransactionType?>(
+                    key: ValueKey<String>('report-type-$typeFilter'),
+                    initialValue: typeFilter,
+                    decoration: const InputDecoration(labelText: 'Type'),
+                    items: const <DropdownMenuItem<TransactionType?>>[
+                      DropdownMenuItem<TransactionType?>(
+                        value: null,
+                        child: Text('All types'),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String?>(
-                          key: ValueKey<String>(
-                            'report-account-${accountFilter ?? 'all'}-${accounts.length}',
-                          ),
-                          initialValue: accountFilter,
-                          decoration: const InputDecoration(
-                            labelText: 'Account',
-                          ),
-                          items: <DropdownMenuItem<String?>>[
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('All accounts'),
-                            ),
-                            ...accounts.map(
-                              (account) => DropdownMenuItem<String?>(
-                                value: account.id,
-                                child: Text(account.name),
-                              ),
-                            ),
-                          ],
-                          onChanged: onAccountChanged,
+                      DropdownMenuItem<TransactionType?>(
+                        value: TransactionType.expense,
+                        child: Text('Expense'),
+                      ),
+                      DropdownMenuItem<TransactionType?>(
+                        value: TransactionType.income,
+                        child: Text('Income'),
+                      ),
+                      DropdownMenuItem<TransactionType?>(
+                        value: TransactionType.transfer,
+                        child: Text('Transfer'),
+                      ),
+                    ],
+                    onChanged: onTypeChanged,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    key: ValueKey<String>(
+                      'report-account-${accountFilter ?? 'all'}-${accounts.length}',
+                    ),
+                    initialValue: accountFilter,
+                    decoration: const InputDecoration(labelText: 'Account'),
+                    items: <DropdownMenuItem<String?>>[
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('All accounts'),
+                      ),
+                      ...accounts.map(
+                        (account) => DropdownMenuItem<String?>(
+                          value: account.id,
+                          child: Text(account.name),
                         ),
                       ),
                     ],
+                    onChanged: onAccountChanged,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
@@ -810,6 +857,10 @@ class _ReportBody extends StatelessWidget {
                         value: null,
                         child: Text('All categories'),
                       ),
+                      const DropdownMenuItem<String?>(
+                        value: _uncategorizedReportFilterValue,
+                        child: Text('Uncategorized'),
+                      ),
                       ...categoryOptions.map(
                         (option) => DropdownMenuItem<String?>(
                           value: option.category.id,
@@ -825,34 +876,22 @@ class _ReportBody extends StatelessWidget {
                         : onCategoryChanged,
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextFormField(
-                          controller: minAmountController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'Min amount',
-                          ),
-                          onChanged: (_) => onAmountChanged(),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: maxAmountController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'Max amount',
-                          ),
-                          onChanged: (_) => onAmountChanged(),
-                        ),
-                      ),
-                    ],
+                  TextFormField(
+                    controller: minAmountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Min amount'),
+                    onChanged: (_) => onAmountChanged(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: maxAmountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Max amount'),
+                    onChanged: (_) => onAmountChanged(),
                   ),
                   if (period == ReportPeriod.custom) ...<Widget>[
                     const SizedBox(height: 12),
@@ -862,24 +901,31 @@ class _ReportBody extends StatelessWidget {
                         color: AppColors.lightMint.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              customStartDate == null || customEndDate == null
-                                  ? 'Pick a custom date range'
-                                  : '${_formatDate(customStartDate!)} to ${_formatDate(customEndDate!)}',
-                            ),
+                          Text(
+                            customStartDate == null || customEndDate == null
+                                ? 'Pick a custom date range'
+                                : '${_formatDate(customStartDate!)} to ${_formatDate(customEndDate!)}',
                           ),
-                          TextButton(
-                            onPressed: onPickCustomRange,
-                            child: const Text('Choose'),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: <Widget>[
+                              TextButton(
+                                onPressed: onPickCustomRange,
+                                child: const Text('Choose'),
+                              ),
+                              if (customStartDate != null ||
+                                  customEndDate != null)
+                                TextButton(
+                                  onPressed: onClearCustomRange,
+                                  child: const Text('Clear'),
+                                ),
+                            ],
                           ),
-                          if (customStartDate != null || customEndDate != null)
-                            TextButton(
-                              onPressed: onClearCustomRange,
-                              child: const Text('Clear'),
-                            ),
                         ],
                       ),
                     ),
@@ -900,9 +946,12 @@ class _ReportBody extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
                   children: <Widget>[
-                    Expanded(
+                    SizedBox(
+                      width: 220,
                       child: SummaryCard(
                         label: 'Income',
                         amountLabel: CurrencyFormatter.formatMinorUnits(
@@ -911,14 +960,24 @@ class _ReportBody extends StatelessWidget {
                         accentColor: AppColors.positive,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                    SizedBox(
+                      width: 220,
                       child: SummaryCard(
                         label: 'Expense',
                         amountLabel: CurrencyFormatter.formatMinorUnits(
                           snapshot.expenseMinor,
                         ),
                         accentColor: AppColors.negative,
+                      ),
+                    ),
+                    SizedBox(
+                      width: 220,
+                      child: SummaryCard(
+                        label: 'Transfers',
+                        amountLabel: CurrencyFormatter.formatMinorUnits(
+                          snapshot.transferMinor,
+                        ),
+                        accentColor: AppColors.primary,
                       ),
                     ),
                   ],
@@ -935,7 +994,7 @@ class _ReportBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  '${snapshot.transactions.length} transaction(s) in this view',
+                  'Incoming and outgoing are shown separately below for a clearer monthly view.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -944,18 +1003,26 @@ class _ReportBody extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Text(
-          'Category breakdown',
+          'Outgoing by category',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 12),
-        if (snapshot.categoryRows.isEmpty)
+        if (snapshot.expenseCategoryRows.isNotEmpty)
+          _CategoryPieSection(
+            title: 'Expense pie',
+            rows: snapshot.expenseCategoryRows,
+            emptyLabel: 'No expense categories in this period yet.',
+            accentColor: AppColors.negative,
+          ),
+        if (snapshot.expenseCategoryRows.isNotEmpty) const SizedBox(height: 12),
+        if (snapshot.expenseCategoryRows.isEmpty)
           const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text('No expense categories in this period yet.'),
             ),
           ),
-        ...snapshot.categoryRows
+        ...snapshot.expenseCategoryRows
             .take(8)
             .map(
               (entry) => Card(
@@ -971,9 +1038,47 @@ class _ReportBody extends StatelessWidget {
               ),
             ),
         const SizedBox(height: 20),
+        Text(
+          'Incoming by category',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 12),
+        if (snapshot.incomeCategoryRows.isNotEmpty)
+          _CategoryPieSection(
+            title: 'Income pie',
+            rows: snapshot.incomeCategoryRows,
+            emptyLabel: 'No income categories in this period yet.',
+            accentColor: AppColors.positive,
+          ),
+        if (snapshot.incomeCategoryRows.isNotEmpty) const SizedBox(height: 12),
+        if (snapshot.incomeCategoryRows.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No income categories in this period yet.'),
+            ),
+          ),
+        ...snapshot.incomeCategoryRows
+            .take(8)
+            .map(
+              (entry) => Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(16),
+                  title: Text(entry.label),
+                  trailing: Text(
+                    CurrencyFormatter.formatMinorUnits(entry.amountMinor),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.positive,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        const SizedBox(height: 20),
         Text('Account balances', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
-        ...sortedAccounts.map(
+        ...visibleAccounts.map(
           (account) => Card(
             margin: const EdgeInsets.only(bottom: 12),
             child: ListTile(
@@ -992,7 +1097,7 @@ class _ReportBody extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return AppDateFormatter.format(date);
   }
 }
 
@@ -1017,8 +1122,11 @@ class _ReportSnapshot {
     required this.transactions,
     required this.incomeMinor,
     required this.expenseMinor,
+    required this.transferMinor,
     required this.netMinor,
     required this.categoryRows,
+    required this.expenseCategoryRows,
+    required this.incomeCategoryRows,
     required this.accountRows,
     required this.categoryOptions,
   });
@@ -1026,8 +1134,11 @@ class _ReportSnapshot {
   final List<MoneyTransaction> transactions;
   final int incomeMinor;
   final int expenseMinor;
+  final int transferMinor;
   final int netMinor;
   final List<_CategoryRow> categoryRows;
+  final List<_CategoryRow> expenseCategoryRows;
+  final List<_CategoryRow> incomeCategoryRows;
   final List<_AccountBalanceRow> accountRows;
   final List<_CategoryPickerOption> categoryOptions;
 }
@@ -1038,6 +1149,194 @@ class _CategoryRow {
   final String label;
   final int amountMinor;
 }
+
+class _CategoryPieSection extends StatelessWidget {
+  const _CategoryPieSection({
+    required this.title,
+    required this.rows,
+    required this.emptyLabel,
+    required this.accentColor,
+  });
+
+  final String title;
+  final List<_CategoryRow> rows;
+  final String emptyLabel;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(emptyLabel),
+        ),
+      );
+    }
+
+    final List<_PieSliceData> slices = _buildSlices(rows);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 16),
+            Center(
+              child: SizedBox(
+                width: 180,
+                height: 180,
+                child: CustomPaint(
+                  painter: _PieChartPainter(
+                    slices: slices,
+                    baseColor: accentColor,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...slices.map(
+              (slice) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      width: 12,
+                      height: 12,
+                      margin: const EdgeInsets.only(top: 4),
+                      decoration: BoxDecoration(
+                        color: slice.color,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${slice.label} (${slice.percentLabel})',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      CurrencyFormatter.formatMinorUnits(slice.amountMinor),
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<_PieSliceData> _buildSlices(List<_CategoryRow> rows) {
+    final int total = rows.fold<int>(0, (sum, row) => sum + row.amountMinor);
+    final List<_CategoryRow> ranked = [...rows]
+      ..sort((a, b) => b.amountMinor.compareTo(a.amountMinor));
+    final List<_CategoryRow> visible = ranked.take(5).toList(growable: false);
+    final List<_PieSliceData> slices = <_PieSliceData>[];
+
+    for (var index = 0; index < visible.length; index++) {
+      final row = visible[index];
+      slices.add(
+        _PieSliceData(
+          label: row.label,
+          amountMinor: row.amountMinor,
+          share: total == 0 ? 0 : row.amountMinor / total,
+          color: _piePalette[index % _piePalette.length],
+        ),
+      );
+    }
+
+    final int remaining = ranked
+        .skip(5)
+        .fold<int>(0, (sum, row) => sum + row.amountMinor);
+    if (remaining > 0) {
+      slices.add(
+        _PieSliceData(
+          label: 'Other',
+          amountMinor: remaining,
+          share: total == 0 ? 0 : remaining / total,
+          color: _piePalette[5 % _piePalette.length],
+        ),
+      );
+    }
+
+    return slices;
+  }
+}
+
+class _PieSliceData {
+  const _PieSliceData({
+    required this.label,
+    required this.amountMinor,
+    required this.share,
+    required this.color,
+  });
+
+  final String label;
+  final int amountMinor;
+  final double share;
+  final Color color;
+
+  String get percentLabel => '${(share * 100).toStringAsFixed(0)}%';
+}
+
+class _PieChartPainter extends CustomPainter {
+  const _PieChartPainter({required this.slices, required this.baseColor});
+
+  final List<_PieSliceData> slices;
+  final Color baseColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 30
+      ..strokeCap = StrokeCap.butt;
+    final Offset center = size.center(Offset.zero);
+    final double radius = math.min(size.width, size.height) / 2 - 16;
+    final Rect rect = Rect.fromCircle(center: center, radius: radius);
+
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 30
+        ..color = baseColor.withValues(alpha: 0.10),
+    );
+
+    double startAngle = -math.pi / 2;
+    for (final slice in slices) {
+      final double sweepAngle = math.pi * 2 * slice.share;
+      if (sweepAngle <= 0) {
+        continue;
+      }
+      paint.color = slice.color;
+      canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+      startAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PieChartPainter oldDelegate) {
+    return oldDelegate.slices != slices || oldDelegate.baseColor != baseColor;
+  }
+}
+
+const List<Color> _piePalette = <Color>[
+  Color(0xFF65BC66),
+  Color(0xFF2F8F46),
+  Color(0xFFFFD255),
+  Color(0xFFF59E0B),
+  Color(0xFF3B82F6),
+  Color(0xFF8B5CF6),
+];
 
 String _transactionCategoryLabel(MoneyTransaction transaction) {
   final String? parentName = transaction.categoryName;

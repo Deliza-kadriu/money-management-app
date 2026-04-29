@@ -520,69 +520,110 @@ class _CreateCategorySheetState extends ConsumerState<_CreateCategorySheet> {
                   const SizedBox(height: 16),
                   Text('Color', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: CategoryVisuals.palette
-                        .map((value) {
-                          final Color color = CategoryVisuals.colorFromValue(
-                            value,
-                          );
-                          final bool isSelected = _selectedColorValue == value;
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    ),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: CategoryVisuals.palette
+                          .map((value) {
+                            final Color color = CategoryVisuals.colorFromValue(
+                              value,
+                            );
+                            final bool isSelected =
+                                _selectedColorValue == value;
 
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedColorValue = value;
-                              });
-                            },
-                            child: CircleAvatar(
-                              radius: isSelected ? 22 : 20,
-                              backgroundColor: color,
-                              child: isSelected
-                                  ? const Icon(
-                                      Icons.check_rounded,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                          );
-                        })
-                        .toList(growable: false),
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedColorValue = value;
+                                });
+                              },
+                              child: CircleAvatar(
+                                radius: isSelected ? 22 : 20,
+                                backgroundColor: color,
+                                child: isSelected
+                                    ? const Icon(
+                                        Icons.check_rounded,
+                                        color: Colors.white,
+                                      )
+                                    : null,
+                              ),
+                            );
+                          })
+                          .toList(growable: false),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text('Icon', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Choose from a larger icon set for better category recognition.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: CategoryVisuals.iconMap.entries
-                        .map((entry) {
-                          final bool isSelected = _selectedIconKey == entry.key;
+                  Container(
+                    height: 280,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    ),
+                    child: GridView.builder(
+                      itemCount: CategoryVisuals.iconMap.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 5,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
+                      itemBuilder: (context, index) {
+                        final MapEntry<String, IconData> entry = CategoryVisuals
+                            .iconMap
+                            .entries
+                            .elementAt(index);
+                        final bool isSelected = _selectedIconKey == entry.key;
 
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedIconKey = entry.key;
-                              });
-                            },
-                            child: CircleAvatar(
-                              radius: isSelected ? 22 : 20,
-                              backgroundColor: isSelected
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedIconKey = entry.key;
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              color: isSelected
                                   ? CategoryVisuals.colorFromValue(
                                       _selectedColorValue,
                                     )
                                   : Theme.of(
                                       context,
                                     ).colorScheme.surfaceContainerHighest,
-                              foregroundColor: isSelected
+                              border: Border.all(
+                                color: isSelected
+                                    ? CategoryVisuals.colorFromValue(
+                                        _selectedColorValue,
+                                      )
+                                    : Colors.transparent,
+                                width: 1.4,
+                              ),
+                            ),
+                            child: Icon(
+                              entry.value,
+                              color: isSelected
                                   ? Colors.white
                                   : Theme.of(context).colorScheme.onSurface,
-                              child: Icon(entry.value),
                             ),
-                          );
-                        })
-                        .toList(growable: false),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 24),
                   FilledButton(

@@ -27,12 +27,29 @@ class AppModeTabs<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color containerColor = isDark
+        ? AppColors.darkCard
+        : AppColors.lightMint;
+    final Color selectedColor = isDark ? AppColors.darkSurface : Colors.white;
+    final Color activeColor = isDark
+        ? AppColors.textLight
+        : AppColors.primaryDark;
+    final Color inactiveColor = isDark
+        ? AppColors.mutedLight
+        : AppColors.textDark.withValues(alpha: 0.55);
+
     return Container(
       height: 52,
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: AppColors.lightMint,
+        color: containerColor,
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightMint,
+          width: 1.2,
+        ),
       ),
       child: Row(
         children: items.map((item) {
@@ -46,16 +63,18 @@ class AppModeTabs<T> extends StatelessWidget {
                 curve: Curves.easeOut,
                 height: double.infinity,
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : Colors.transparent,
+                  color: isSelected ? selectedColor : Colors.transparent,
                   borderRadius: BorderRadius.circular(18),
                   boxShadow: isSelected
                       ? <BoxShadow>[
-                    BoxShadow(
-                      color: AppColors.primaryDark.withValues(alpha: 0.10),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: isDark ? 0.18 : 0.10,
+                            ),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
                       : null,
                 ),
                 child: Row(
@@ -64,9 +83,7 @@ class AppModeTabs<T> extends StatelessWidget {
                     Icon(
                       item.icon,
                       size: 18,
-                      color: isSelected
-                          ? AppColors.primaryDark
-                          : AppColors.textDark.withValues(alpha: 0.55),
+                      color: isSelected ? activeColor : inactiveColor,
                     ),
                     const SizedBox(width: 6),
                     Flexible(
@@ -76,9 +93,7 @@ class AppModeTabs<T> extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
-                          color: isSelected
-                              ? AppColors.primaryDark
-                              : AppColors.textDark.withValues(alpha: 0.55),
+                          color: isSelected ? activeColor : inactiveColor,
                         ),
                       ),
                     ),

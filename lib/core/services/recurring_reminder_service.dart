@@ -1,5 +1,6 @@
 import 'package:money_manager/core/services/app_settings_service.dart';
 import 'package:money_manager/core/services/notification_service.dart';
+import 'package:money_manager/core/utils/date_formatter.dart';
 import 'package:money_manager/domain/entities/recurring_rule.dart';
 import 'package:money_manager/domain/enums/transaction_type.dart';
 import 'package:money_manager/domain/repositories/recurring_rule_repository.dart';
@@ -111,6 +112,6 @@ class RecurringReminderService {
   }
 
   String _dateLabel(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return AppDateFormatter.format(date);
   }
 }

@@ -115,6 +115,36 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _excludeFromTotalsMeta = const VerificationMeta(
+    'excludeFromTotals',
+  );
+  @override
+  late final GeneratedColumn<bool> excludeFromTotals = GeneratedColumn<bool>(
+    'exclude_from_totals',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("exclude_from_totals" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isDefaultMeta = const VerificationMeta(
+    'isDefault',
+  );
+  @override
+  late final GeneratedColumn<bool> isDefault = GeneratedColumn<bool>(
+    'is_default',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_default" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -159,6 +189,8 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     colorValue,
     iconKey,
     isActive,
+    excludeFromTotals,
+    isDefault,
     createdAt,
     updatedAt,
     deletedAt,
@@ -243,6 +275,21 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
       );
     }
+    if (data.containsKey('exclude_from_totals')) {
+      context.handle(
+        _excludeFromTotalsMeta,
+        excludeFromTotals.isAcceptableOrUnknown(
+          data['exclude_from_totals']!,
+          _excludeFromTotalsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_default')) {
+      context.handle(
+        _isDefaultMeta,
+        isDefault.isAcceptableOrUnknown(data['is_default']!, _isDefaultMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -310,6 +357,14 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
       )!,
+      excludeFromTotals: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}exclude_from_totals'],
+      )!,
+      isDefault: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_default'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -341,6 +396,8 @@ class Account extends DataClass implements Insertable<Account> {
   final int colorValue;
   final String iconKey;
   final bool isActive;
+  final bool excludeFromTotals;
+  final bool isDefault;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -354,6 +411,8 @@ class Account extends DataClass implements Insertable<Account> {
     required this.colorValue,
     required this.iconKey,
     required this.isActive,
+    required this.excludeFromTotals,
+    required this.isDefault,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -370,6 +429,8 @@ class Account extends DataClass implements Insertable<Account> {
     map['color_value'] = Variable<int>(colorValue);
     map['icon_key'] = Variable<String>(iconKey);
     map['is_active'] = Variable<bool>(isActive);
+    map['exclude_from_totals'] = Variable<bool>(excludeFromTotals);
+    map['is_default'] = Variable<bool>(isDefault);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
@@ -389,6 +450,8 @@ class Account extends DataClass implements Insertable<Account> {
       colorValue: Value(colorValue),
       iconKey: Value(iconKey),
       isActive: Value(isActive),
+      excludeFromTotals: Value(excludeFromTotals),
+      isDefault: Value(isDefault),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -416,6 +479,8 @@ class Account extends DataClass implements Insertable<Account> {
       colorValue: serializer.fromJson<int>(json['colorValue']),
       iconKey: serializer.fromJson<String>(json['iconKey']),
       isActive: serializer.fromJson<bool>(json['isActive']),
+      excludeFromTotals: serializer.fromJson<bool>(json['excludeFromTotals']),
+      isDefault: serializer.fromJson<bool>(json['isDefault']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -434,6 +499,8 @@ class Account extends DataClass implements Insertable<Account> {
       'colorValue': serializer.toJson<int>(colorValue),
       'iconKey': serializer.toJson<String>(iconKey),
       'isActive': serializer.toJson<bool>(isActive),
+      'excludeFromTotals': serializer.toJson<bool>(excludeFromTotals),
+      'isDefault': serializer.toJson<bool>(isDefault),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -450,6 +517,8 @@ class Account extends DataClass implements Insertable<Account> {
     int? colorValue,
     String? iconKey,
     bool? isActive,
+    bool? excludeFromTotals,
+    bool? isDefault,
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
@@ -463,6 +532,8 @@ class Account extends DataClass implements Insertable<Account> {
     colorValue: colorValue ?? this.colorValue,
     iconKey: iconKey ?? this.iconKey,
     isActive: isActive ?? this.isActive,
+    excludeFromTotals: excludeFromTotals ?? this.excludeFromTotals,
+    isDefault: isDefault ?? this.isDefault,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -486,6 +557,10 @@ class Account extends DataClass implements Insertable<Account> {
           : this.colorValue,
       iconKey: data.iconKey.present ? data.iconKey.value : this.iconKey,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      excludeFromTotals: data.excludeFromTotals.present
+          ? data.excludeFromTotals.value
+          : this.excludeFromTotals,
+      isDefault: data.isDefault.present ? data.isDefault.value : this.isDefault,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -504,6 +579,8 @@ class Account extends DataClass implements Insertable<Account> {
           ..write('colorValue: $colorValue, ')
           ..write('iconKey: $iconKey, ')
           ..write('isActive: $isActive, ')
+          ..write('excludeFromTotals: $excludeFromTotals, ')
+          ..write('isDefault: $isDefault, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -522,6 +599,8 @@ class Account extends DataClass implements Insertable<Account> {
     colorValue,
     iconKey,
     isActive,
+    excludeFromTotals,
+    isDefault,
     createdAt,
     updatedAt,
     deletedAt,
@@ -539,6 +618,8 @@ class Account extends DataClass implements Insertable<Account> {
           other.colorValue == this.colorValue &&
           other.iconKey == this.iconKey &&
           other.isActive == this.isActive &&
+          other.excludeFromTotals == this.excludeFromTotals &&
+          other.isDefault == this.isDefault &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -554,6 +635,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   final Value<int> colorValue;
   final Value<String> iconKey;
   final Value<bool> isActive;
+  final Value<bool> excludeFromTotals;
+  final Value<bool> isDefault;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -568,6 +651,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.colorValue = const Value.absent(),
     this.iconKey = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.excludeFromTotals = const Value.absent(),
+    this.isDefault = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -583,6 +668,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     required int colorValue,
     this.iconKey = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.excludeFromTotals = const Value.absent(),
+    this.isDefault = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
     this.deletedAt = const Value.absent(),
@@ -603,6 +690,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Expression<int>? colorValue,
     Expression<String>? iconKey,
     Expression<bool>? isActive,
+    Expression<bool>? excludeFromTotals,
+    Expression<bool>? isDefault,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -620,6 +709,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       if (colorValue != null) 'color_value': colorValue,
       if (iconKey != null) 'icon_key': iconKey,
       if (isActive != null) 'is_active': isActive,
+      if (excludeFromTotals != null) 'exclude_from_totals': excludeFromTotals,
+      if (isDefault != null) 'is_default': isDefault,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -637,6 +728,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Value<int>? colorValue,
     Value<String>? iconKey,
     Value<bool>? isActive,
+    Value<bool>? excludeFromTotals,
+    Value<bool>? isDefault,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
@@ -652,6 +745,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       colorValue: colorValue ?? this.colorValue,
       iconKey: iconKey ?? this.iconKey,
       isActive: isActive ?? this.isActive,
+      excludeFromTotals: excludeFromTotals ?? this.excludeFromTotals,
+      isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -689,6 +784,12 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
+    if (excludeFromTotals.present) {
+      map['exclude_from_totals'] = Variable<bool>(excludeFromTotals.value);
+    }
+    if (isDefault.present) {
+      map['is_default'] = Variable<bool>(isDefault.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -716,6 +817,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
           ..write('colorValue: $colorValue, ')
           ..write('iconKey: $iconKey, ')
           ..write('isActive: $isActive, ')
+          ..write('excludeFromTotals: $excludeFromTotals, ')
+          ..write('isDefault: $isDefault, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -4198,6 +4301,8 @@ typedef $$AccountsTableCreateCompanionBuilder =
       required int colorValue,
       Value<String> iconKey,
       Value<bool> isActive,
+      Value<bool> excludeFromTotals,
+      Value<bool> isDefault,
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<DateTime?> deletedAt,
@@ -4214,6 +4319,8 @@ typedef $$AccountsTableUpdateCompanionBuilder =
       Value<int> colorValue,
       Value<String> iconKey,
       Value<bool> isActive,
+      Value<bool> excludeFromTotals,
+      Value<bool> isDefault,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -4271,6 +4378,16 @@ class $$AccountsTableFilterComposer
 
   ColumnFilters<bool> get isActive => $composableBuilder(
     column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get excludeFromTotals => $composableBuilder(
+    column: $table.excludeFromTotals,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDefault => $composableBuilder(
+    column: $table.isDefault,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4344,6 +4461,16 @@ class $$AccountsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get excludeFromTotals => $composableBuilder(
+    column: $table.excludeFromTotals,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDefault => $composableBuilder(
+    column: $table.isDefault,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -4404,6 +4531,14 @@ class $$AccountsTableAnnotationComposer
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
 
+  GeneratedColumn<bool> get excludeFromTotals => $composableBuilder(
+    column: $table.excludeFromTotals,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDefault =>
+      $composableBuilder(column: $table.isDefault, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -4451,6 +4586,8 @@ class $$AccountsTableTableManager
                 Value<int> colorValue = const Value.absent(),
                 Value<String> iconKey = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<bool> excludeFromTotals = const Value.absent(),
+                Value<bool> isDefault = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -4465,6 +4602,8 @@ class $$AccountsTableTableManager
                 colorValue: colorValue,
                 iconKey: iconKey,
                 isActive: isActive,
+                excludeFromTotals: excludeFromTotals,
+                isDefault: isDefault,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -4481,6 +4620,8 @@ class $$AccountsTableTableManager
                 required int colorValue,
                 Value<String> iconKey = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<bool> excludeFromTotals = const Value.absent(),
+                Value<bool> isDefault = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -4495,6 +4636,8 @@ class $$AccountsTableTableManager
                 colorValue: colorValue,
                 iconKey: iconKey,
                 isActive: isActive,
+                excludeFromTotals: excludeFromTotals,
+                isDefault: isDefault,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,

@@ -16,12 +16,21 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(dashboardSummaryProvider);
     final recentTransactionsAsync = ref.watch(recentTransactionsProvider);
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: <Color>[AppColors.dashboardTop, AppColors.dashboardBottom],
+            colors: isDark
+                ? const <Color>[
+                    AppColors.darkBackgroundTop,
+                    AppColors.darkBackgroundBottom,
+                  ]
+                : const <Color>[
+                    AppColors.dashboardTop,
+                    AppColors.dashboardBottom,
+                  ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),

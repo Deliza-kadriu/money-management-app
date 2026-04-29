@@ -83,7 +83,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                       child: Icon(account.icon),
                     ),
                     title: Text(account.name),
-                    subtitle: Text(_accountTypeLabel(account.type)),
+                    subtitle: Text(_accountSubtitle(account)),
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) async {
                         if (value == 'edit') {
@@ -199,6 +199,17 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       case AccountType.other:
         return 'Other';
     }
+  }
+
+  String _accountSubtitle(domain.Account account) {
+    final parts = <String>[_accountTypeLabel(account.type)];
+    if (account.excludeFromTotals) {
+      parts.add('Hidden from total');
+    }
+    if (account.isDefault) {
+      parts.add('Default');
+    }
+    return parts.join(' • ');
   }
 }
 
@@ -319,6 +330,8 @@ class _CreateAccountSheetState extends ConsumerState<_CreateAccountSheet> {
   AccountType _selectedType = AccountType.bankAccount;
   int _selectedColorValue = AccountVisuals.palette.first;
   String _selectedIconKey = 'bank';
+  bool _excludeFromTotals = false;
+  bool _isDefault = false;
   bool _isSaving = false;
   bool get _isEditing => widget.account != null;
 
@@ -337,6 +350,8 @@ class _CreateAccountSheetState extends ConsumerState<_CreateAccountSheet> {
     _selectedType = account.type;
     _selectedColorValue = account.colorValue;
     _selectedIconKey = account.iconKey;
+    _excludeFromTotals = account.excludeFromTotals;
+    _isDefault = account.isDefault;
   }
 
   @override
@@ -421,6 +436,33 @@ class _CreateAccountSheetState extends ConsumerState<_CreateAccountSheet> {
                 child: Text(baseCurrencyCode),
               ),
               const SizedBox(height: 16),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Hide from total balance'),
+                subtitle: const Text(
+                  'Exclude this account from the dashboard total balance.',
+                ),
+                value: _excludeFromTotals,
+                onChanged: (value) {
+                  setState(() {
+                    _excludeFromTotals = value;
+                  });
+                },
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Default account'),
+                subtitle: const Text(
+                  'Use this account by default when creating a new transaction.',
+                ),
+                value: _isDefault,
+                onChanged: (value) {
+                  setState(() {
+                    _isDefault = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
               Text('Color', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               Wrap(
@@ -525,6 +567,8 @@ class _CreateAccountSheetState extends ConsumerState<_CreateAccountSheet> {
             colorValue: _selectedColorValue,
             iconKey: _selectedIconKey,
             isActive: true,
+            excludeFromTotals: _excludeFromTotals,
+            isDefault: _isDefault,
           ),
         );
       } else {
@@ -538,6 +582,8 @@ class _CreateAccountSheetState extends ConsumerState<_CreateAccountSheet> {
             currencyCode: baseCurrencyCode,
             colorValue: _selectedColorValue,
             iconKey: _selectedIconKey,
+            excludeFromTotals: _excludeFromTotals,
+            isDefault: _isDefault,
           ),
         );
       }

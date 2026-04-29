@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:money_manager/app/theme/app_colors.dart';
+import 'package:money_manager/core/utils/category_visuals.dart';
+import 'package:money_manager/core/utils/date_formatter.dart';
 import 'package:money_manager/core/utils/currency_formatter.dart';
 import 'package:money_manager/domain/entities/account.dart' as account_domain;
 import 'package:money_manager/domain/entities/category.dart' as category_domain;
@@ -12,7 +15,6 @@ import 'package:money_manager/domain/enums/category_type.dart';
 import 'package:money_manager/domain/enums/transaction_type.dart';
 import 'package:money_manager/domain/repositories/transaction_repository.dart';
 import 'package:money_manager/shared/providers/app_providers.dart';
-import 'package:money_manager/shared/widgets/app_mode_tabs.dart';
 import 'package:money_manager/shared/widgets/app_filter_chips.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -20,6 +22,10 @@ import 'package:path_provider/path_provider.dart';
 enum TransactionListMode { active, archived }
 
 enum TransactionDateFilter { all, thisMonth, last30Days, custom }
+
+enum TransactionPresentationTab { expense, income, allList }
+
+const String _uncategorizedFilterValue = '__uncategorized__';
 
 class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
@@ -38,6 +44,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   String? _accountFilter;
   String? _categoryFilter;
   TransactionDateFilter _dateFilter = TransactionDateFilter.thisMonth;
+  TransactionPresentationTab _presentationTab =
+      TransactionPresentationTab.expense;
+  final Set<String> _hiddenExpenseInsightLabels = <String>{};
+  final Set<String> _hiddenIncomeInsightLabels = <String>{};
   DateTime? _customStartDate;
   DateTime? _customEndDate;
 
@@ -52,6 +62,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     final bool archivedOnly = _mode == TransactionListMode.archived;
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
     final transactionsAsync = ref.watch(transactionsProvider(archivedOnly));
     final accountsAsync = ref.watch(accountsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
@@ -60,7 +72,24 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         categoriesAsync.valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Transactions')),
+      appBar: AppBar(
+        title: Text(archivedOnly ? 'Archived transactions' : 'Transactions'),
+        actions: <Widget>[
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _mode = archivedOnly
+                    ? TransactionListMode.active
+                    : TransactionListMode.archived;
+              });
+            },
+            icon: Icon(
+              archivedOnly ? Icons.unarchive_outlined : Icons.archive_outlined,
+            ),
+            tooltip: archivedOnly ? 'Show active' : 'Show archived',
+          ),
+        ],
+      ),
       floatingActionButton: archivedOnly
           ? null
           : FloatingActionButton.extended(
@@ -71,6 +100,14 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
       body: transactionsAsync.when(
         data: (transactions) {
           final filteredTransactions = _applyFilters(transactions);
+          final displayedTransactions = _transactionsForPresentationTab(
+            filteredTransactions,
+            _presentationTab,
+          );
+          final categoryGroups = _categoryGroupsForTransactions(
+            displayedTransactions,
+            categories ?? const <category_domain.Category>[],
+          );
           final Widget filterPanel;
 
           if (accounts != null && categories != null) {
@@ -140,14 +177,29 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             filterPanel = const LinearProgressIndicator();
           }
 
+          Widget buildTransactionEntry(MoneyTransaction transaction) {
+            return _TransactionCard(
+              transaction: transaction,
+              archivedOnly: archivedOnly,
+              onEdit: archivedOnly
+                  ? null
+                  : () => _openEditSheet(context, transaction),
+              onArchive: archivedOnly
+                  ? null
+                  : () => ref
+                        .read(transactionRepositoryProvider)
+                        .softDeleteTransaction(transaction.id),
+              onRestore: archivedOnly
+                  ? () => ref
+                        .read(transactionRepositoryProvider)
+                        .restoreTransaction(transaction.id)
+                  : null,
+            );
+          }
+
           if (transactions.isEmpty) {
             return _EmptyTransactionsState(
               mode: _mode,
-              onModeChanged: (mode) {
-                setState(() {
-                  _mode = mode;
-                });
-              },
               onCreate: archivedOnly ? null : () => _openCreateSheet(context),
             );
           }
@@ -155,78 +207,192 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
             children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: isDark ? AppColors.darkBorder : AppColors.lightMint,
+                    width: 1.3,
+                  ),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.22 : 0.05,
+                      ),
+                      blurRadius: 14,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: SegmentedButton<TransactionPresentationTab>(
+                  style: ButtonStyle(
+                    side: WidgetStatePropertyAll(BorderSide.none),
+                    backgroundColor: WidgetStateProperty.resolveWith<Color?>((
+                      states,
+                    ) {
+                      if (states.contains(WidgetState.selected)) {
+                        return isDark
+                            ? AppColors.primaryDark.withValues(alpha: 0.48)
+                            : AppColors.lightMint;
+                      }
+                      return Colors.transparent;
+                    }),
+                    foregroundColor: WidgetStateProperty.resolveWith<Color?>((
+                      states,
+                    ) {
+                      if (states.contains(WidgetState.selected)) {
+                        return isDark
+                            ? AppColors.textLight
+                            : AppColors.primaryDark;
+                      }
+                      return isDark
+                          ? AppColors.mutedLight
+                          : AppColors.textDark.withValues(alpha: 0.72);
+                    }),
+                    shape: WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    padding: const WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    ),
+                  ),
+                  segments: const <ButtonSegment<TransactionPresentationTab>>[
+                    ButtonSegment<TransactionPresentationTab>(
+                      value: TransactionPresentationTab.expense,
+                      label: Text('Expenses'),
+                      icon: Icon(Icons.arrow_upward_rounded),
+                    ),
+                    ButtonSegment<TransactionPresentationTab>(
+                      value: TransactionPresentationTab.income,
+                      label: Text('Income'),
+                      icon: Icon(Icons.arrow_downward_rounded),
+                    ),
+                    ButtonSegment<TransactionPresentationTab>(
+                      value: TransactionPresentationTab.allList,
+                      label: Text('All list'),
+                      icon: Icon(Icons.view_list_rounded),
+                    ),
+                  ],
+                  selected: <TransactionPresentationTab>{_presentationTab},
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _presentationTab = selection.first;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   Expanded(
-                    child: _TransactionToolbar(
-                      mode: _mode,
-                      onModeChanged: (mode) {
+                    child: _AppSearchField(
+                      controller: _searchController,
+                      hintText: 'Search transactions',
+                      onChanged: (_) {
+                        setState(() {});
+                      },
+                      onClear: () {
                         setState(() {
-                          _mode = mode;
+                          _searchController.clear();
                         });
                       },
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _showFilters = !_showFilters;
-                      });
-                    },
-                    icon: Icon(
-                      _showFilters
-                          ? Icons.filter_alt_off_rounded
-                          : Icons.filter_alt_rounded,
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    height: 54,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _showFilters = !_showFilters;
+                        });
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        side: BorderSide(
+                          color: _showFilters
+                              ? AppColors.primary
+                              : isDark
+                              ? AppColors.darkBorder
+                              : AppColors.lightMint,
+                          width: 1.3,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        backgroundColor: _showFilters
+                            ? AppColors.primary.withValues(
+                                alpha: isDark ? 0.22 : 0.10,
+                              )
+                            : theme.cardColor,
+                      ),
+                      child: Icon(
+                        _showFilters
+                            ? Icons.filter_alt_off_rounded
+                            : Icons.filter_alt_rounded,
+                        color: isDark
+                            ? AppColors.textLight
+                            : AppColors.textDark,
+                      ),
                     ),
-                    label: Text(_showFilters ? 'Hide filters' : 'Filters'),
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              _AppSearchField(
-                controller: _searchController,
-                hintText: 'Search transactions',
-                onChanged: (_) {
-                  setState(() {});
-                },
-                onClear: () {
-                  setState(() {
-                    _searchController.clear();
-                  });
-                },
               ),
               if (_showFilters) ...<Widget>[
                 const SizedBox(height: 16),
                 filterPanel,
               ],
               const SizedBox(height: 16),
-              if (filteredTransactions.isEmpty)
+              _TransactionInsightsCard(
+                transactions: filteredTransactions,
+                categories: categories ?? const <category_domain.Category>[],
+                typeFilter: _typeFilter,
+                presentationTab: _presentationTab,
+                hiddenExpenseLabels: _hiddenExpenseInsightLabels,
+                hiddenIncomeLabels: _hiddenIncomeInsightLabels,
+              ),
+              const SizedBox(height: 16),
+              if (displayedTransactions.isEmpty)
                 const Card(
                   child: Padding(
                     padding: EdgeInsets.all(16),
                     child: Text('No transactions match the current filters.'),
                   ),
                 ),
-              ...filteredTransactions.map(
-                (transaction) => _TransactionCard(
-                  transaction: transaction,
-                  archivedOnly: archivedOnly,
-                  onEdit: archivedOnly
-                      ? null
-                      : () => _openEditSheet(context, transaction),
-                  onArchive: archivedOnly
-                      ? null
-                      : () => ref
-                            .read(transactionRepositoryProvider)
-                            .softDeleteTransaction(transaction.id),
-                  onRestore: archivedOnly
-                      ? () => ref
-                            .read(transactionRepositoryProvider)
-                            .restoreTransaction(transaction.id)
-                      : null,
+              if (_presentationTab == TransactionPresentationTab.allList)
+                ...displayedTransactions.map(buildTransactionEntry),
+              if (_presentationTab != TransactionPresentationTab.allList)
+                ...categoryGroups.map(
+                  (group) => _TransactionCategorySection(
+                    group: group,
+                    archivedOnly: archivedOnly,
+                    itemBuilder: buildTransactionEntry,
+                    hiddenChartLabels:
+                        _presentationTab == TransactionPresentationTab.income
+                        ? _hiddenIncomeInsightLabels
+                        : _hiddenExpenseInsightLabels,
+                    onToggleChartLabels: (labels) {
+                      setState(() {
+                        final Set<String> target =
+                            _presentationTab ==
+                                TransactionPresentationTab.income
+                            ? _hiddenIncomeInsightLabels
+                            : _hiddenExpenseInsightLabels;
+                        final bool allHidden = labels.every(target.contains);
+                        if (allHidden) {
+                          target.removeAll(labels);
+                        } else {
+                          target.addAll(labels);
+                        }
+                      });
+                    },
+                  ),
                 ),
-              ),
             ],
           );
         },
@@ -234,26 +400,6 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           child: Column(
             children: <Widget>[
-              AppModeTabs<TransactionListMode>(
-                selected: _mode,
-                onChanged: (mode) {
-                  setState(() {
-                    _mode = mode;
-                  });
-                },
-                items: const <AppModeTabItem<TransactionListMode>>[
-                  AppModeTabItem<TransactionListMode>(
-                    value: TransactionListMode.active,
-                    label: 'Active',
-                    icon: Icons.receipt_long_outlined,
-                  ),
-                  AppModeTabItem<TransactionListMode>(
-                    value: TransactionListMode.archived,
-                    label: 'Archived',
-                    icon: Icons.archive_outlined,
-                  ),
-                ],
-              ),
               const SizedBox(height: 24),
               const Center(child: CircularProgressIndicator()),
             ],
@@ -365,6 +511,24 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     }
   }
 
+  List<MoneyTransaction> _transactionsForPresentationTab(
+    List<MoneyTransaction> transactions,
+    TransactionPresentationTab tab,
+  ) {
+    switch (tab) {
+      case TransactionPresentationTab.expense:
+        return transactions
+            .where((transaction) => transaction.type == TransactionType.expense)
+            .toList(growable: false);
+      case TransactionPresentationTab.income:
+        return transactions
+            .where((transaction) => transaction.type == TransactionType.income)
+            .toList(growable: false);
+      case TransactionPresentationTab.allList:
+        return transactions;
+    }
+  }
+
   bool get _hasActiveFilters {
     return _typeFilter != null ||
         _accountFilter != null ||
@@ -391,6 +555,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   }
 
   bool _matchesCategoryFilter(MoneyTransaction transaction, String categoryId) {
+    if (categoryId == _uncategorizedFilterValue) {
+      return transaction.categoryId == null &&
+          transaction.childCategoryId == null;
+    }
+
     if (transaction.childCategoryId == categoryId) {
       return true;
     }
@@ -410,6 +579,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   String? _resolveCategoryFilter(List<_CategoryPickerOption> categoryOptions) {
     if (_categoryFilter == null) {
       return null;
+    }
+
+    if (_categoryFilter == _uncategorizedFilterValue) {
+      return _categoryFilter;
     }
 
     final bool exists = categoryOptions.any(
@@ -555,6 +728,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
       _accountFilter = null;
       _categoryFilter = null;
       _dateFilter = TransactionDateFilter.thisMonth;
+      _presentationTab = TransactionPresentationTab.expense;
+      _hiddenExpenseInsightLabels.clear();
+      _hiddenIncomeInsightLabels.clear();
       _customStartDate = null;
       _customEndDate = null;
       _minAmountController.clear();
@@ -622,60 +798,71 @@ class _AppSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool hasText = controller.text.trim().isNotEmpty;
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightMint;
+    final Color fieldColor = isDark ? AppColors.darkCard : Colors.white;
+    final Color iconBackground = isDark
+        ? AppColors.primaryDark.withValues(alpha: 0.55)
+        : AppColors.lightMint;
+    final Color textColor = isDark ? AppColors.textLight : AppColors.textDark;
 
-    return Container(
-      height: 54,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.lightMint, width: 1.4),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppColors.primaryDark.withValues(alpha: 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        style: const TextStyle(
-          color: AppColors.textDark,
-          fontWeight: FontWeight.w600,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        height: 54,
+        decoration: BoxDecoration(
+          color: fieldColor,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: borderColor, width: 1.4),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: TextStyle(
-            color: AppColors.textDark.withValues(alpha: 0.40),
-            fontWeight: FontWeight.w500,
-          ),
-          prefixIcon: Container(
-            margin: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: AppColors.lightMint,
-              borderRadius: BorderRadius.circular(999),
+        child: TextField(
+          controller: controller,
+          onChanged: onChanged,
+          textInputAction: TextInputAction.search,
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+          decoration: InputDecoration(
+            filled: false,
+            hintText: hintText,
+            hintStyle: TextStyle(
+              color: textColor.withValues(alpha: 0.50),
+              fontWeight: FontWeight.w500,
             ),
-            child: const Icon(
-              Icons.search_rounded,
-              color: AppColors.primaryDark,
-              size: 21,
+            prefixIcon: Container(
+              margin: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: iconBackground,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Icon(
+                Icons.search_rounded,
+                color: isDark ? AppColors.textLight : AppColors.primaryDark,
+                size: 21,
+              ),
             ),
-          ),
-          suffixIcon: hasText
-              ? IconButton(
-                  onPressed: onClear,
-                  icon: const Icon(Icons.close_rounded),
-                  color: AppColors.textDark,
-                )
-              : null,
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 4,
-            vertical: 15,
+            suffixIcon: hasText
+                ? IconButton(
+                    onPressed: onClear,
+                    icon: const Icon(Icons.close_rounded),
+                    color: textColor,
+                  )
+                : null,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 15,
+            ),
           ),
         ),
       ),
@@ -751,58 +938,50 @@ class _TransactionFilterPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: DropdownButtonFormField<TransactionType?>(
-                    key: ValueKey<String>('tx-type-$typeFilter'),
-                    initialValue: typeFilter,
-                    decoration: const InputDecoration(labelText: 'Type'),
-                    items: const <DropdownMenuItem<TransactionType?>>[
-                      DropdownMenuItem<TransactionType?>(
-                        value: null,
-                        child: Text('All types'),
-                      ),
-                      DropdownMenuItem<TransactionType?>(
-                        value: TransactionType.expense,
-                        child: Text('Expense'),
-                      ),
-                      DropdownMenuItem<TransactionType?>(
-                        value: TransactionType.income,
-                        child: Text('Income'),
-                      ),
-                      DropdownMenuItem<TransactionType?>(
-                        value: TransactionType.transfer,
-                        child: Text('Transfer'),
-                      ),
-                    ],
-                    onChanged: onTypeChanged,
-                  ),
+            DropdownButtonFormField<TransactionType?>(
+              key: ValueKey<String>('tx-type-$typeFilter'),
+              initialValue: typeFilter,
+              decoration: const InputDecoration(labelText: 'Type'),
+              items: const <DropdownMenuItem<TransactionType?>>[
+                DropdownMenuItem<TransactionType?>(
+                  value: null,
+                  child: Text('All types'),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String?>(
-                    key: ValueKey<String>(
-                      'tx-account-${accountFilter ?? 'all'}-${accounts.length}',
-                    ),
-                    initialValue: accountFilter,
-                    decoration: const InputDecoration(labelText: 'Account'),
-                    items: <DropdownMenuItem<String?>>[
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('All accounts'),
-                      ),
-                      ...accounts.map(
-                        (account) => DropdownMenuItem<String?>(
-                          value: account.id,
-                          child: Text(account.name),
-                        ),
-                      ),
-                    ],
-                    onChanged: onAccountChanged,
+                DropdownMenuItem<TransactionType?>(
+                  value: TransactionType.expense,
+                  child: Text('Expense'),
+                ),
+                DropdownMenuItem<TransactionType?>(
+                  value: TransactionType.income,
+                  child: Text('Income'),
+                ),
+                DropdownMenuItem<TransactionType?>(
+                  value: TransactionType.transfer,
+                  child: Text('Transfer'),
+                ),
+              ],
+              onChanged: onTypeChanged,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String?>(
+              key: ValueKey<String>(
+                'tx-account-${accountFilter ?? 'all'}-${accounts.length}',
+              ),
+              initialValue: accountFilter,
+              decoration: const InputDecoration(labelText: 'Account'),
+              items: <DropdownMenuItem<String?>>[
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('All accounts'),
+                ),
+                ...accounts.map(
+                  (account) => DropdownMenuItem<String?>(
+                    value: account.id,
+                    child: Text(account.name),
                   ),
                 ),
               ],
+              onChanged: onAccountChanged,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String?>(
@@ -821,6 +1000,10 @@ class _TransactionFilterPanel extends StatelessWidget {
                   value: null,
                   child: Text('All categories'),
                 ),
+                const DropdownMenuItem<String?>(
+                  value: _uncategorizedFilterValue,
+                  child: Text('Uncategorized'),
+                ),
                 ...categoryOptions.map(
                   (option) => DropdownMenuItem<String?>(
                     value: option.category.id,
@@ -836,30 +1019,22 @@ class _TransactionFilterPanel extends StatelessWidget {
                   : onCategoryChanged,
             ),
             const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: TextFormField(
-                    controller: minAmountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'Min amount'),
-                    onChanged: (_) => onAmountChanged(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: maxAmountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'Max amount'),
-                    onChanged: (_) => onAmountChanged(),
-                  ),
-                ),
-              ],
+            TextFormField(
+              controller: minAmountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Min amount'),
+              onChanged: (_) => onAmountChanged(),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: maxAmountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Max amount'),
+              onChanged: (_) => onAmountChanged(),
             ),
             const SizedBox(height: 12),
             AppFilterChips<TransactionDateFilter>(
@@ -892,24 +1067,30 @@ class _TransactionFilterPanel extends StatelessWidget {
                   color: AppColors.lightMint.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        customStartDate == null || customEndDate == null
-                            ? 'Pick a custom date range'
-                            : '${_formatDate(customStartDate!)} to ${_formatDate(customEndDate!)}',
-                      ),
+                    Text(
+                      customStartDate == null || customEndDate == null
+                          ? 'Pick a custom date range'
+                          : '${_formatDate(customStartDate!)} to ${_formatDate(customEndDate!)}',
                     ),
-                    TextButton(
-                      onPressed: onPickCustomRange,
-                      child: const Text('Choose'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: <Widget>[
+                        TextButton(
+                          onPressed: onPickCustomRange,
+                          child: const Text('Choose'),
+                        ),
+                        if (customStartDate != null || customEndDate != null)
+                          TextButton(
+                            onPressed: onClearCustomRange,
+                            child: const Text('Clear'),
+                          ),
+                      ],
                     ),
-                    if (customStartDate != null || customEndDate != null)
-                      TextButton(
-                        onPressed: onClearCustomRange,
-                        child: const Text('Clear'),
-                      ),
                   ],
                 ),
               ),
@@ -921,46 +1102,925 @@ class _TransactionFilterPanel extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return AppDateFormatter.format(date);
   }
 }
 
-class _TransactionToolbar extends StatelessWidget {
-  const _TransactionToolbar({required this.mode, required this.onModeChanged});
+class _TransactionInsightsCard extends StatelessWidget {
+  const _TransactionInsightsCard({
+    required this.transactions,
+    required this.categories,
+    required this.typeFilter,
+    required this.presentationTab,
+    required this.hiddenExpenseLabels,
+    required this.hiddenIncomeLabels,
+  });
 
-  final TransactionListMode mode;
-  final ValueChanged<TransactionListMode> onModeChanged;
+  final List<MoneyTransaction> transactions;
+  final List<category_domain.Category> categories;
+  final TransactionType? typeFilter;
+  final TransactionPresentationTab presentationTab;
+  final Set<String> hiddenExpenseLabels;
+  final Set<String> hiddenIncomeLabels;
 
   @override
   Widget build(BuildContext context) {
-    return AppModeTabs<TransactionListMode>(
-      selected: mode,
-      onChanged: onModeChanged,
-      items: const <AppModeTabItem<TransactionListMode>>[
-        AppModeTabItem<TransactionListMode>(
-          value: TransactionListMode.active,
-          label: 'Active',
-          icon: Icons.receipt_long_outlined,
+    final expenseRows = _categoryRowsForTransactions(
+      transactions,
+      TransactionType.expense,
+      categories,
+    );
+    final incomeRows = _categoryRowsForTransactions(
+      transactions,
+      TransactionType.income,
+      categories,
+    );
+
+    final bool showExpense =
+        presentationTab == TransactionPresentationTab.expense ||
+        (presentationTab == TransactionPresentationTab.allList &&
+            (typeFilter == null || typeFilter == TransactionType.expense));
+    final bool showIncome =
+        presentationTab == TransactionPresentationTab.income ||
+        (presentationTab == TransactionPresentationTab.allList &&
+            (typeFilter == null || typeFilter == TransactionType.income));
+    final bool showTransferHint = typeFilter == TransactionType.transfer;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            if (showTransferHint) ...<Widget>[
+              const SizedBox(height: 12),
+              const Text('Transfers do not use category pies.'),
+            ] else ...<Widget>[
+              if (showExpense && expenseRows.isNotEmpty) ...<Widget>[
+                _TransactionPieSection(
+                  title: 'Expense categories',
+                  rows: expenseRows,
+                  accentColor: AppColors.negative,
+                  hiddenLabels: hiddenExpenseLabels,
+                ),
+              ],
+              if (showIncome && incomeRows.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 16),
+                _TransactionPieSection(
+                  title: 'Income categories',
+                  rows: incomeRows,
+                  accentColor: AppColors.positive,
+                  hiddenLabels: hiddenIncomeLabels,
+                ),
+              ],
+              if ((showExpense && expenseRows.isEmpty) &&
+                  (showIncome && incomeRows.isEmpty)) ...<Widget>[
+                const SizedBox(height: 12),
+                const Text(
+                  'No category data is available for this filtered view.',
+                ),
+              ],
+            ],
+          ],
         ),
-        AppModeTabItem<TransactionListMode>(
-          value: TransactionListMode.archived,
-          label: 'Archived',
-          icon: Icons.archive_outlined,
+      ),
+    );
+  }
+}
+
+class _TransactionCategorySection extends StatelessWidget {
+  const _TransactionCategorySection({
+    required this.group,
+    required this.archivedOnly,
+    required this.itemBuilder,
+    required this.hiddenChartLabels,
+    required this.onToggleChartLabels,
+  });
+
+  final _TransactionCategoryGroup group;
+  final bool archivedOnly;
+  final Widget Function(MoneyTransaction transaction) itemBuilder;
+  final Set<String> hiddenChartLabels;
+  final ValueChanged<List<String>> onToggleChartLabels;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool allHidden =
+        group.chartLabels.isNotEmpty &&
+        group.chartLabels.every(hiddenChartLabels.contains);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          leading: CircleAvatar(
+            backgroundColor: group.color.withValues(alpha: 0.16),
+            foregroundColor: group.color,
+            child: Icon(group.icon, size: 18),
+          ),
+          title: Text(
+            group.label,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          subtitle: Text(
+            '${group.totalCount} transaction(s)',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              IconButton(
+                onPressed: group.chartLabels.isEmpty
+                    ? null
+                    : () => onToggleChartLabels(group.chartLabels),
+                icon: Icon(
+                  allHidden
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  color: group.color,
+                ),
+                tooltip: allHidden ? 'Show in chart' : 'Hide from chart',
+              ),
+              Text(
+                CurrencyFormatter.formatMinorUnits(group.totalMinor),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: group.type == TransactionType.income
+                      ? AppColors.positive
+                      : AppColors.negative,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.expand_more_rounded),
+            ],
+          ),
+          children: <Widget>[
+            if (group.directTransactions.isNotEmpty)
+              ...group.directTransactions.map(itemBuilder),
+            ...group.childGroups.map(
+              (childGroup) => _TransactionChildCategorySection(
+                group: childGroup,
+                itemBuilder: itemBuilder,
+                hiddenChartLabels: hiddenChartLabels,
+                onToggleChartLabels: onToggleChartLabels,
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _TransactionChildCategorySection extends StatelessWidget {
+  const _TransactionChildCategorySection({
+    required this.group,
+    required this.itemBuilder,
+    required this.hiddenChartLabels,
+    required this.onToggleChartLabels,
+  });
+
+  final _TransactionChildGroup group;
+  final Widget Function(MoneyTransaction transaction) itemBuilder;
+  final Set<String> hiddenChartLabels;
+  final ValueChanged<List<String>> onToggleChartLabels;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isHidden = hiddenChartLabels.contains(group.chartLabel);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          leading: CircleAvatar(
+            radius: 16,
+            backgroundColor: group.color.withValues(alpha: 0.16),
+            foregroundColor: group.color,
+            child: Icon(group.icon, size: 16),
+          ),
+          title: Text(
+            group.label,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          subtitle: Text(
+            '${group.transactions.length} transaction(s)',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              IconButton(
+                onPressed: () =>
+                    onToggleChartLabels(<String>[group.chartLabel]),
+                icon: Icon(
+                  isHidden
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  color: group.color,
+                ),
+                tooltip: isHidden ? 'Show in chart' : 'Hide from chart',
+              ),
+              Text(
+                CurrencyFormatter.formatMinorUnits(group.totalMinor),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.expand_more_rounded),
+            ],
+          ),
+          children: <Widget>[...group.transactions.map(itemBuilder)],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryPickerField extends StatelessWidget {
+  const _CategoryPickerField({
+    required this.selectedLabel,
+    required this.isChild,
+    required this.onTap,
+  });
+
+  final String? selectedLabel;
+  final bool isChild;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Category',
+          helperText: 'Pick a parent or child category from a clearer list.',
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              selectedLabel == null
+                  ? Icons.category_outlined
+                  : isChild
+                  ? Icons.subdirectory_arrow_right_rounded
+                  : Icons.folder_outlined,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                selectedLabel ?? 'No category',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.expand_more_rounded),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryPickerSheet extends StatefulWidget {
+  const _CategoryPickerSheet({
+    required this.options,
+    required this.selectedCategoryId,
+  });
+
+  final List<_CategoryPickerOption> options;
+  final String? selectedCategoryId;
+
+  @override
+  State<_CategoryPickerSheet> createState() => _CategoryPickerSheetState();
+}
+
+class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final List<_CategoryPickerParentGroup> groupedOptions =
+        _groupCategoryPickerOptions(widget.options, query);
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          8,
+          16,
+          MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: SizedBox(
+          height: 520,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Choose category',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Search category',
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.remove_circle_outline_rounded),
+                title: const Text('No category'),
+                trailing: widget.selectedCategoryId == null
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.of(context).pop<String?>(null),
+              ),
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              Expanded(
+                child: groupedOptions.isEmpty
+                    ? const Center(child: Text('No matching categories'))
+                    : ListView(
+                        children: groupedOptions
+                            .map(
+                              (group) => _CategoryPickerGroupCard(
+                                group: group,
+                                selectedCategoryId: widget.selectedCategoryId,
+                                onPick: (categoryId) => Navigator.of(
+                                  context,
+                                ).pop<String?>(categoryId),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryPickerGroupCard extends StatelessWidget {
+  const _CategoryPickerGroupCard({
+    required this.group,
+    required this.selectedCategoryId,
+    required this.onPick,
+  });
+
+  final _CategoryPickerParentGroup group;
+  final String? selectedCategoryId;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool parentSelected = selectedCategoryId == group.parent.category.id;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => onPick(group.parent.category.id),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: group.parent.category.color.withValues(
+                    alpha: parentSelected ? 0.18 : 0.10,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: parentSelected
+                        ? group.parent.category.color
+                        : group.parent.category.color.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: group.parent.category.color.withValues(
+                        alpha: 0.18,
+                      ),
+                      foregroundColor: group.parent.category.color,
+                      child: Icon(
+                        CategoryVisuals.iconFromKey(
+                          group.parent.category.iconKey,
+                        ),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        group.parent.label,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    if (parentSelected)
+                      Icon(
+                        Icons.check_circle_rounded,
+                        color: group.parent.category.color,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (group.children.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: group.children
+                    .map((child) {
+                      final bool selected =
+                          selectedCategoryId == child.category.id;
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => onPick(child.category.id),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: child.category.color.withValues(
+                              alpha: selected ? 0.18 : 0.08,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selected
+                                  ? child.category.color
+                                  : child.category.color.withValues(
+                                      alpha: 0.20,
+                                    ),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(
+                                CategoryVisuals.iconFromKey(
+                                  child.category.iconKey,
+                                ),
+                                size: 16,
+                                color: child.category.color,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                child.category.name,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              if (selected) ...<Widget>[
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.check_rounded,
+                                  size: 16,
+                                  color: child.category.color,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionPieSection extends StatelessWidget {
+  const _TransactionPieSection({
+    required this.title,
+    required this.rows,
+    required this.accentColor,
+    required this.hiddenLabels,
+  });
+
+  final String title;
+  final List<_CategoryAmountRow> rows;
+  final Color accentColor;
+  final Set<String> hiddenLabels;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleRows = rows
+        .where((row) => !hiddenLabels.contains(row.label))
+        .toList(growable: false);
+    final int allTotal = rows.fold<int>(0, (sum, row) => sum + row.amountMinor);
+    final int visibleTotal = visibleRows.fold<int>(
+      0,
+      (sum, row) => sum + row.amountMinor,
+    );
+    final int hiddenTotal = allTotal - visibleTotal;
+    final slices = _buildPieSlices(visibleRows);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          hiddenLabels.isEmpty
+              ? 'Visible total: ${CurrencyFormatter.formatMinorUnits(visibleTotal)}'
+              : 'Visible total: ${CurrencyFormatter.formatMinorUnits(visibleTotal)}  •  Hidden: ${CurrencyFormatter.formatMinorUnits(hiddenTotal)}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        if (visibleRows.isEmpty)
+          Text(
+            'All categories are hidden in this chart.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          )
+        else
+          Center(
+            child: SizedBox(
+              width: 160,
+              height: 160,
+              child: CustomPaint(
+                painter: _TransactionPiePainter(
+                  slices: slices,
+                  baseColor: accentColor,
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 12),
       ],
     );
   }
 }
 
-class _EmptyTransactionsState extends StatelessWidget {
-  const _EmptyTransactionsState({
-    required this.mode,
-    required this.onModeChanged,
-    required this.onCreate,
+class _CategoryAmountRow {
+  const _CategoryAmountRow({
+    required this.label,
+    required this.amountMinor,
+    required this.color,
+    required this.icon,
   });
 
+  final String label;
+  final int amountMinor;
+  final Color color;
+  final IconData icon;
+}
+
+class _CategoryVisualMeta {
+  const _CategoryVisualMeta({required this.color, required this.icon});
+
+  final Color color;
+  final IconData icon;
+}
+
+class _TransactionCategoryGroup {
+  const _TransactionCategoryGroup({
+    required this.label,
+    required this.chartLabels,
+    required this.directTransactions,
+    required this.childGroups,
+    required this.totalMinor,
+    required this.type,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final List<String> chartLabels;
+  final List<MoneyTransaction> directTransactions;
+  final List<_TransactionChildGroup> childGroups;
+  final int totalMinor;
+  final TransactionType type;
+  final Color color;
+  final IconData icon;
+
+  int get totalCount =>
+      directTransactions.length +
+      childGroups.fold<int>(0, (sum, group) => sum + group.transactions.length);
+}
+
+class _TransactionChildGroup {
+  const _TransactionChildGroup({
+    required this.label,
+    required this.chartLabel,
+    required this.transactions,
+    required this.totalMinor,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final String chartLabel;
+  final List<MoneyTransaction> transactions;
+  final int totalMinor;
+  final Color color;
+  final IconData icon;
+}
+
+class _TransactionPieSlice {
+  const _TransactionPieSlice({required this.share, required this.color});
+
+  final double share;
+  final Color color;
+}
+
+class _TransactionPiePainter extends CustomPainter {
+  const _TransactionPiePainter({required this.slices, required this.baseColor});
+
+  final List<_TransactionPieSlice> slices;
+  final Color baseColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 28;
+    final Offset center = size.center(Offset.zero);
+    final double radius = math.min(size.width, size.height) / 2 - 14;
+    final Rect rect = Rect.fromCircle(center: center, radius: radius);
+
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 28
+        ..color = baseColor.withValues(alpha: 0.10),
+    );
+
+    double startAngle = -math.pi / 2;
+    for (final slice in slices) {
+      final double sweepAngle = math.pi * 2 * slice.share;
+      if (sweepAngle <= 0) {
+        continue;
+      }
+      paint.color = slice.color;
+      canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+      startAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TransactionPiePainter oldDelegate) {
+    return oldDelegate.slices != slices || oldDelegate.baseColor != baseColor;
+  }
+}
+
+List<_CategoryAmountRow> _categoryRowsForTransactions(
+  List<MoneyTransaction> transactions,
+  TransactionType type,
+  List<category_domain.Category> categories,
+) {
+  final Map<String, category_domain.Category> categoryById = {
+    for (final category in categories) category.id: category,
+  };
+  final Map<String, int> totals = <String, int>{};
+  final Map<String, _CategoryVisualMeta> visuals =
+      <String, _CategoryVisualMeta>{};
+  for (final transaction in transactions) {
+    if (transaction.type != type) {
+      continue;
+    }
+
+    final label = _transactionCategoryLabel(transaction);
+    final category = transaction.childCategoryId != null
+        ? categoryById[transaction.childCategoryId!]
+        : transaction.categoryId != null
+        ? categoryById[transaction.categoryId!]
+        : null;
+    totals.update(
+      label,
+      (value) => value + transaction.amountMinor,
+      ifAbsent: () => transaction.amountMinor,
+    );
+    visuals.putIfAbsent(
+      label,
+      () => _CategoryVisualMeta(
+        color: category?.color ?? AppColors.primary,
+        icon: CategoryVisuals.iconFromKey(category?.iconKey ?? 'category'),
+      ),
+    );
+  }
+
+  final rows =
+      totals.entries
+          .map(
+            (entry) => _CategoryAmountRow(
+              label: entry.key,
+              amountMinor: entry.value,
+              color: visuals[entry.key]?.color ?? AppColors.primary,
+              icon: visuals[entry.key]?.icon ?? Icons.category_rounded,
+            ),
+          )
+          .toList(growable: false)
+        ..sort((a, b) => b.amountMinor.compareTo(a.amountMinor));
+  return rows;
+}
+
+List<_TransactionCategoryGroup> _categoryGroupsForTransactions(
+  List<MoneyTransaction> transactions,
+  List<category_domain.Category> categories,
+) {
+  final Map<String, category_domain.Category> categoryById = {
+    for (final category in categories) category.id: category,
+  };
+  final Map<String, List<MoneyTransaction>> directByParent =
+      <String, List<MoneyTransaction>>{};
+  final Map<String, Map<String, List<MoneyTransaction>>> childByParent =
+      <String, Map<String, List<MoneyTransaction>>>{};
+  for (final transaction in transactions) {
+    if (transaction.type == TransactionType.transfer) {
+      continue;
+    }
+
+    final String parentLabel = transaction.categoryName ?? 'Uncategorized';
+    final String? childLabel = transaction.childCategoryName;
+
+    if (childLabel == null) {
+      directByParent
+          .putIfAbsent(parentLabel, () => <MoneyTransaction>[])
+          .add(transaction);
+      continue;
+    }
+
+    childByParent
+        .putIfAbsent(parentLabel, () => <String, List<MoneyTransaction>>{})
+        .putIfAbsent(childLabel, () => <MoneyTransaction>[])
+        .add(transaction);
+  }
+
+  final Set<String> parentLabels = <String>{
+    ...directByParent.keys,
+    ...childByParent.keys,
+  };
+
+  final groups =
+      parentLabels
+          .map((parentLabel) {
+            final List<MoneyTransaction> directItems = [
+              ...?directByParent[parentLabel],
+            ]..sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+            final List<_TransactionChildGroup> childGroups =
+                (childByParent[parentLabel] ??
+                        <String, List<MoneyTransaction>>{})
+                    .entries
+                    .map((entry) {
+                      final items = [...entry.value]
+                        ..sort(
+                          (a, b) =>
+                              b.transactionDate.compareTo(a.transactionDate),
+                        );
+                      final total = items.fold<int>(
+                        0,
+                        (sum, transaction) => sum + transaction.amountMinor,
+                      );
+                      final category_domain.Category? childCategory =
+                          items.first.childCategoryId != null
+                          ? categoryById[items.first.childCategoryId!]
+                          : null;
+                      final category_domain.Category? parentCategory =
+                          items.first.categoryId != null
+                          ? categoryById[items.first.categoryId!]
+                          : null;
+                      return _TransactionChildGroup(
+                        label: entry.key,
+                        chartLabel: '$parentLabel > ${entry.key}',
+                        transactions: items,
+                        totalMinor: total,
+                        color:
+                            childCategory?.color ??
+                            parentCategory?.color ??
+                            AppColors.primary,
+                        icon: CategoryVisuals.iconFromKey(
+                          childCategory?.iconKey ??
+                              parentCategory?.iconKey ??
+                              'category',
+                        ),
+                      );
+                    })
+                    .toList(growable: false)
+                  ..sort((a, b) => b.totalMinor.compareTo(a.totalMinor));
+
+            final int totalMinor =
+                directItems.fold<int>(
+                  0,
+                  (sum, transaction) => sum + transaction.amountMinor,
+                ) +
+                childGroups.fold<int>(
+                  0,
+                  (sum, group) => sum + group.totalMinor,
+                );
+            final MoneyTransaction sample = directItems.isNotEmpty
+                ? directItems.first
+                : childGroups.first.transactions.first;
+
+            category_domain.Category? parentCategory;
+            if (directItems.isNotEmpty &&
+                directItems.first.categoryId != null) {
+              parentCategory = categoryById[directItems.first.categoryId!];
+            } else if (childGroups.isNotEmpty) {
+              final MoneyTransaction firstChildTransaction =
+                  childGroups.first.transactions.first;
+              final String? parentCategoryId = firstChildTransaction.categoryId;
+              if (parentCategoryId != null) {
+                parentCategory = categoryById[parentCategoryId];
+              }
+            }
+            return _TransactionCategoryGroup(
+              label: parentLabel,
+              chartLabels: <String>[
+                if (directItems.isNotEmpty) parentLabel,
+                ...childGroups.map((group) => group.chartLabel),
+              ],
+              directTransactions: directItems,
+              childGroups: childGroups,
+              totalMinor: totalMinor,
+              type: sample.type,
+              color: parentCategory?.color ?? AppColors.primary,
+              icon: CategoryVisuals.iconFromKey(
+                parentCategory?.iconKey ?? 'category',
+              ),
+            );
+          })
+          .toList(growable: false)
+        ..sort((a, b) => b.totalMinor.compareTo(a.totalMinor));
+  return groups;
+}
+
+List<_TransactionPieSlice> _buildPieSlices(List<_CategoryAmountRow> rows) {
+  final int total = rows.fold<int>(0, (sum, row) => sum + row.amountMinor);
+  final List<_CategoryAmountRow> ranked = [...rows]
+    ..sort((a, b) => b.amountMinor.compareTo(a.amountMinor));
+  final List<_CategoryAmountRow> visible = ranked
+      .take(5)
+      .toList(growable: false);
+  final List<_TransactionPieSlice> slices = <_TransactionPieSlice>[];
+
+  for (int index = 0; index < visible.length; index += 1) {
+    final _CategoryAmountRow row = visible[index];
+    slices.add(
+      _TransactionPieSlice(
+        share: total == 0 ? 0 : row.amountMinor / total,
+        color: row.color,
+      ),
+    );
+  }
+
+  final int remaining = ranked
+      .skip(5)
+      .fold<int>(0, (sum, row) => sum + row.amountMinor);
+  if (remaining > 0) {
+    slices.add(
+      _TransactionPieSlice(
+        share: total == 0 ? 0 : remaining / total,
+        color: AppColors.lightMint,
+      ),
+    );
+  }
+
+  return slices;
+}
+
+String _transactionCategoryLabel(MoneyTransaction transaction) {
+  final String? parentName = transaction.categoryName;
+  final String? childName = transaction.childCategoryName;
+
+  if (parentName != null && childName != null) {
+    return '$parentName > $childName';
+  }
+
+  return childName ?? parentName ?? 'Uncategorized';
+}
+
+class _EmptyTransactionsState extends StatelessWidget {
+  const _EmptyTransactionsState({required this.mode, required this.onCreate});
+
   final TransactionListMode mode;
-  final ValueChanged<TransactionListMode> onModeChanged;
   final VoidCallback? onCreate;
 
   @override
@@ -968,66 +2028,39 @@ class _EmptyTransactionsState extends StatelessWidget {
     final bool archivedOnly = mode == TransactionListMode.archived;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      child: Column(
-        children: <Widget>[
-          AppModeTabs<TransactionListMode>(
-            selected: mode,
-            onChanged: onModeChanged,
-            items: const <AppModeTabItem<TransactionListMode>>[
-              AppModeTabItem<TransactionListMode>(
-                value: TransactionListMode.active,
-                label: 'Active',
-                icon: Icons.receipt_long_outlined,
-              ),
-              AppModeTabItem<TransactionListMode>(
-                value: TransactionListMode.archived,
-                label: 'Archived',
-                icon: Icons.archive_outlined,
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              archivedOnly
+                  ? Icons.archive_outlined
+                  : Icons.receipt_long_outlined,
+              size: 48,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              archivedOnly ? 'No archived transactions' : 'No transactions yet',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              archivedOnly
+                  ? 'Archived transactions will appear here and can be restored.'
+                  : 'Create your first income, expense, or transfer to start tracking balances.',
+              textAlign: TextAlign.center,
+            ),
+            if (!archivedOnly) ...<Widget>[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Add transaction'),
               ),
             ],
-          ),
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(
-                      archivedOnly
-                          ? Icons.archive_outlined
-                          : Icons.receipt_long_outlined,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      archivedOnly
-                          ? 'No archived transactions'
-                          : 'No transactions yet',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      archivedOnly
-                          ? 'Archived transactions will appear here and can be restored.'
-                          : 'Create your first income, expense, or transfer to start tracking balances.',
-                      textAlign: TextAlign.center,
-                    ),
-                    if (!archivedOnly) ...<Widget>[
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: onCreate,
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Add transaction'),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1112,7 +2145,7 @@ class _TransactionCard extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: Text(
-                    '${transaction.transactionDate.year}-${transaction.transactionDate.month.toString().padLeft(2, '0')}-${transaction.transactionDate.day.toString().padLeft(2, '0')}',
+                    AppDateFormatter.format(transaction.transactionDate),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -1173,14 +2206,7 @@ class _TransactionCard extends StatelessWidget {
   }
 
   String _categoryLabel(MoneyTransaction transaction) {
-    final String? parentName = transaction.categoryName;
-    final String? childName = transaction.childCategoryName;
-
-    if (parentName != null && childName != null) {
-      return '$parentName > $childName';
-    }
-
-    return childName ?? parentName ?? 'Uncategorized';
+    return _transactionCategoryLabel(transaction);
   }
 }
 
@@ -1266,7 +2292,14 @@ class _CreateTransactionSheetState
             );
           }
 
-          _selectedAccountId ??= accounts.first.id;
+          final account_domain.Account? defaultAccount = accounts
+              .where((account) => account.isDefault)
+              .cast<account_domain.Account?>()
+              .fold<account_domain.Account?>(
+                null,
+                (selected, account) => selected ?? account,
+              );
+          _selectedAccountId ??= defaultAccount?.id ?? accounts.first.id;
           if (_selectedType == TransactionType.transfer) {
             _selectedDestinationAccountId ??=
                 accounts
@@ -1344,9 +2377,7 @@ class _CreateTransactionSheetState
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: <Widget>[
-                        Text(
-                          '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
-                        ),
+                        Text(AppDateFormatter.format(_selectedDate)),
                         const Icon(Icons.calendar_today_rounded, size: 18),
                       ],
                     ),
@@ -1413,48 +2444,33 @@ class _CreateTransactionSheetState
                       );
                       final selectedCategoryPickerId =
                           _selectedChildCategoryId ?? _selectedCategoryId;
+                      final selectedOption = _findCategoryOption(
+                        categoryOptions,
+                        selectedCategoryPickerId,
+                      );
 
-                      return DropdownButtonFormField<String?>(
-                        initialValue: selectedCategoryPickerId,
-                        decoration: const InputDecoration(
-                          labelText: 'Category',
-                          helperText:
-                              'Choose either a parent category or a child category.',
-                        ),
-                        items: <DropdownMenuItem<String?>>[
-                          const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text('None'),
-                          ),
-                          ...categoryOptions.map(
-                            (option) => DropdownMenuItem<String?>(
-                              value: option.category.id,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Icon(
-                                    option.isChild
-                                        ? Icons.subdirectory_arrow_right_rounded
-                                        : Icons.folder_outlined,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    fit: FlexFit.loose,
-                                    child: Text(
-                                      option.label,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) {
+                      return _CategoryPickerField(
+                        selectedLabel: selectedOption?.label,
+                        isChild: selectedOption?.isChild ?? false,
+                        onTap: () async {
+                          final String? pickedId =
+                              await showModalBottomSheet<String?>(
+                                context: context,
+                                isScrollControlled: true,
+                                showDragHandle: true,
+                                builder: (context) => _CategoryPickerSheet(
+                                  options: categoryOptions,
+                                  selectedCategoryId: selectedCategoryPickerId,
+                                ),
+                              );
+
+                          if (!mounted) {
+                            return;
+                          }
+
                           final selectedCategory = _findCategoryOption(
                             categoryOptions,
-                            value,
+                            pickedId,
                           )?.category;
 
                           setState(() {
@@ -1741,6 +2757,57 @@ class _CategoryPickerOption {
   final category_domain.Category category;
   final String label;
   final bool isChild;
+}
+
+class _CategoryPickerParentGroup {
+  const _CategoryPickerParentGroup({
+    required this.parent,
+    required this.children,
+  });
+
+  final _CategoryPickerOption parent;
+  final List<_CategoryPickerOption> children;
+}
+
+List<_CategoryPickerParentGroup> _groupCategoryPickerOptions(
+  List<_CategoryPickerOption> options,
+  String query,
+) {
+  final List<_CategoryPickerOption> parents = options
+      .where((option) => !option.isChild)
+      .toList(growable: false);
+  final List<_CategoryPickerParentGroup> groups =
+      <_CategoryPickerParentGroup>[];
+
+  for (final parent in parents) {
+    final List<_CategoryPickerOption> children = options
+        .where(
+          (option) =>
+              option.isChild && option.category.parentId == parent.category.id,
+        )
+        .toList(growable: false);
+
+    final bool parentMatches =
+        query.isEmpty || parent.label.toLowerCase().contains(query);
+    final List<_CategoryPickerOption> matchingChildren = children
+        .where(
+          (child) => query.isEmpty || child.label.toLowerCase().contains(query),
+        )
+        .toList(growable: false);
+
+    if (!parentMatches && matchingChildren.isEmpty) {
+      continue;
+    }
+
+    groups.add(
+      _CategoryPickerParentGroup(
+        parent: parent,
+        children: parentMatches ? children : matchingChildren,
+      ),
+    );
+  }
+
+  return groups;
 }
 
 class _ReceiptPicker extends StatelessWidget {

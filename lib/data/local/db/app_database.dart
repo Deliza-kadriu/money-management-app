@@ -29,7 +29,20 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (migrator) async {
+      await migrator.createAll();
+    },
+    onUpgrade: (migrator, from, to) async {
+      if (from < 5) {
+        await migrator.addColumn(accounts, accounts.excludeFromTotals);
+        await migrator.addColumn(accounts, accounts.isDefault);
+      }
+    },
+  );
 }
 
 LazyDatabase _openConnection() {
