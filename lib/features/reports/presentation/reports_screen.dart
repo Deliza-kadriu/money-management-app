@@ -713,11 +713,11 @@ class _ReportBody extends StatelessWidget {
         .toList(growable: false);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
       children: <Widget>[
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -730,7 +730,7 @@ class _ReportBody extends StatelessWidget {
                   '${snapshot.transactions.length} transaction(s) in this view',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 AppFilterChips<ReportPeriod>(
                   selected: period,
                   onChanged: onPeriodChanged,
@@ -753,7 +753,7 @@ class _ReportBody extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
@@ -770,12 +770,12 @@ class _ReportBody extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _FilterPanelReveal(
           visible: showFilters,
           child: Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -795,7 +795,7 @@ class _ReportBody extends StatelessWidget {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   DropdownButtonFormField<TransactionType?>(
                     key: ValueKey<String>('report-type-$typeFilter'),
                     initialValue: typeFilter,
@@ -820,7 +820,7 @@ class _ReportBody extends StatelessWidget {
                     ],
                     onChanged: onTypeChanged,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   DropdownButtonFormField<String?>(
                     key: ValueKey<String>(
                       'report-account-${accountFilter ?? 'all'}-${accounts.length}',
@@ -841,7 +841,7 @@ class _ReportBody extends StatelessWidget {
                     ],
                     onChanged: onAccountChanged,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   DropdownButtonFormField<String?>(
                     key: ValueKey<String>(
                       'report-category-${categoryFilter ?? 'all'}-${categoryOptions.length}-$typeFilter',
@@ -876,7 +876,7 @@ class _ReportBody extends StatelessWidget {
                         ? null
                         : onCategoryChanged,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   TextFormField(
                     controller: minAmountController,
                     keyboardType: const TextInputType.numberWithOptions(
@@ -885,7 +885,7 @@ class _ReportBody extends StatelessWidget {
                     decoration: const InputDecoration(labelText: 'Min amount'),
                     onChanged: (_) => onAmountChanged(),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   TextFormField(
                     controller: maxAmountController,
                     keyboardType: const TextInputType.numberWithOptions(
@@ -936,10 +936,10 @@ class _ReportBody extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -949,8 +949,8 @@ class _ReportBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                  spacing: 10,
+                  runSpacing: 10,
                   children: <Widget>[
                     SizedBox(
                       width: 220,
@@ -1003,7 +1003,7 @@ class _ReportBody extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Text(
           'Outgoing by category',
           style: Theme.of(context).textTheme.titleLarge,
@@ -1020,7 +1020,7 @@ class _ReportBody extends StatelessWidget {
         if (snapshot.expenseCategoryRows.isEmpty)
           const Card(
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(14),
               child: Text('No expense categories in this period yet.'),
             ),
           ),
@@ -1028,9 +1028,9 @@ class _ReportBody extends StatelessWidget {
             .take(8)
             .map(
               (entry) => Card(
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
+                  contentPadding: const EdgeInsets.all(12),
                   title: Text(entry.label),
                   trailing: Text(
                     CurrencyFormatter.formatMinorUnits(entry.amountMinor),
@@ -1039,7 +1039,7 @@ class _ReportBody extends StatelessWidget {
                 ),
               ),
             ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Text(
           'Incoming by category',
           style: Theme.of(context).textTheme.titleLarge,
@@ -1056,7 +1056,7 @@ class _ReportBody extends StatelessWidget {
         if (snapshot.incomeCategoryRows.isEmpty)
           const Card(
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(14),
               child: Text('No income categories in this period yet.'),
             ),
           ),
@@ -1064,9 +1064,9 @@ class _ReportBody extends StatelessWidget {
             .take(8)
             .map(
               (entry) => Card(
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
+                  contentPadding: const EdgeInsets.all(12),
                   title: Text(entry.label),
                   trailing: Text(
                     CurrencyFormatter.formatMinorUnits(entry.amountMinor),
@@ -1077,14 +1077,14 @@ class _ReportBody extends StatelessWidget {
                 ),
               ),
             ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Text('Account balances', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         ...visibleAccounts.map(
           (account) => Card(
-            margin: const EdgeInsets.only(bottom: 12),
+            margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
+              contentPadding: const EdgeInsets.all(12),
               title: Text(account.name),
               subtitle: Text(account.type.name),
               trailing: Text(
@@ -1200,7 +1200,7 @@ class _CategoryPieSection extends StatelessWidget {
     if (rows.isEmpty) {
       return Card(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Text(emptyLabel),
         ),
       );
@@ -1209,12 +1209,12 @@ class _CategoryPieSection extends StatelessWidget {
     final List<_PieSliceData> slices = _buildSlices(rows);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Center(
               child: SizedBox(
                 width: 180,
@@ -1227,7 +1227,7 @@ class _CategoryPieSection extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             ...slices.map(
               (slice) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),

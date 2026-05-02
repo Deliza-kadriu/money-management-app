@@ -541,7 +541,7 @@ class _CreateRecurringRuleSheetState
   String? _selectedCategoryId;
   String? _selectedChildCategoryId;
   DateTime _selectedStartDate = DateTime.now();
-  DateTime _selectedNextDueDate = DateTime.now();
+  TimeOfDay _selectedExecutionTime = TimeOfDay.now();
   int _reminderDaysBefore = 0;
   bool _autoCreate = true;
   bool _isSaving = false;
@@ -566,7 +566,7 @@ class _CreateRecurringRuleSheetState
     _selectedCategoryId = rule.categoryId;
     _selectedChildCategoryId = rule.childCategoryId;
     _selectedStartDate = rule.startDate;
-    _selectedNextDueDate = rule.nextDueDate;
+    _selectedExecutionTime = TimeOfDay.fromDateTime(rule.nextDueDate);
     _reminderDaysBefore = rule.reminderDaysBefore;
     _autoCreate = rule.autoCreate;
   }
@@ -824,22 +824,22 @@ class _CreateRecurringRuleSheetState
                     if (picked != null) {
                       setState(() {
                         _selectedStartDate = picked;
-                        if (_selectedNextDueDate.isBefore(picked)) {
-                          _selectedNextDueDate = picked;
-                        }
                       });
                     }
                   },
                 ),
                 const SizedBox(height: 12),
-                _DateField(
-                  label: 'Next due date',
-                  value: _selectedNextDueDate,
+                _TimeField(
+                  label: 'Execution time',
+                  value: _selectedExecutionTime,
                   onTap: () async {
-                    final picked = await _pickDate(_selectedNextDueDate);
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: _selectedExecutionTime,
+                    );
                     if (picked != null) {
                       setState(() {
-                        _selectedNextDueDate = picked;
+                        _selectedExecutionTime = picked;
                       });
                     }
                   },
@@ -933,6 +933,10 @@ class _CreateRecurringRuleSheetState
           ? null
           : _selectedChildCategoryId;
       final int amountMinor = _parseMinorUnits(_amountController.text);
+      final DateTime scheduledStart = _combineDateAndTime(
+        _selectedStartDate,
+        _selectedExecutionTime,
+      );
 
       if (_isEditing) {
         await widget.onUpdate!(
@@ -946,8 +950,8 @@ class _CreateRecurringRuleSheetState
             childCategoryId: childCategoryId,
             amountMinor: amountMinor,
             note: _noteController.text,
-            startDate: _selectedStartDate,
-            nextDueDate: _selectedNextDueDate,
+            startDate: scheduledStart,
+            nextDueDate: scheduledStart,
             reminderDaysBefore: _reminderDaysBefore,
             autoCreate: _autoCreate,
             isActive: widget.rule!.isActive,
@@ -965,8 +969,8 @@ class _CreateRecurringRuleSheetState
             childCategoryId: childCategoryId,
             amountMinor: amountMinor,
             note: _noteController.text,
-            startDate: _selectedStartDate,
-            nextDueDate: _selectedNextDueDate,
+            startDate: scheduledStart,
+            nextDueDate: scheduledStart,
             reminderDaysBefore: _reminderDaysBefore,
             autoCreate: _autoCreate,
           ),
@@ -983,6 +987,10 @@ class _CreateRecurringRuleSheetState
         });
       }
     }
+  }
+
+  DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
   int _parseMinorUnits(String value) {
@@ -1048,6 +1056,36 @@ class _DateField extends StatelessWidget {
           children: <Widget>[
             Text(AppDateFormatter.format(value)),
             const Icon(Icons.calendar_today_rounded, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeField extends StatelessWidget {
+  const _TimeField({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final TimeOfDay value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(labelText: label),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Text(value.format(context)),
+            const Icon(Icons.schedule_rounded, size: 18),
           ],
         ),
       ),

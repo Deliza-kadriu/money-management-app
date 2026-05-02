@@ -41,7 +41,7 @@ class DashboardScreen extends ConsumerWidget {
         ),
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
             children: <Widget>[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,7 +74,7 @@ class DashboardScreen extends ConsumerWidget {
                       : AppColors.textDark.withValues(alpha: 0.68),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               summaryAsync.when(
                 data: (summary) => _BalanceCard(
                   amountLabel: CurrencyFormatter.formatMinorUnits(
@@ -84,18 +84,18 @@ class DashboardScreen extends ConsumerWidget {
                 ),
                 loading: () => const Card(
                   child: Padding(
-                    padding: EdgeInsets.all(20),
+                    padding: EdgeInsets.all(16),
                     child: LinearProgressIndicator(),
                   ),
                 ),
                 error: (error, stackTrace) => Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(16),
                     child: Text('Dashboard summary unavailable.\n$error'),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               summaryAsync.when(
                 data: (summary) => Row(
                   children: <Widget>[
@@ -108,7 +108,7 @@ class DashboardScreen extends ConsumerWidget {
                         accentColor: AppColors.positive,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: SummaryCard(
                         label: 'Expenses',
@@ -123,7 +123,7 @@ class DashboardScreen extends ConsumerWidget {
                 loading: () => const SizedBox.shrink(),
                 error: (_, _) => const SizedBox.shrink(),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               loansAsync.when(
                 data: (loans) {
                   Loan? activeLoan;
@@ -139,7 +139,7 @@ class DashboardScreen extends ConsumerWidget {
                   }
 
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.only(bottom: 16),
                     child: _ActiveLoanCard(loan: activeLoan),
                   );
                 },
@@ -147,10 +147,10 @@ class DashboardScreen extends ConsumerWidget {
                 error: (_, _) => const SizedBox.shrink(),
               ),
               const _SectionHeader(title: 'Quick access'),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Wrap(
-                spacing: 12,
-                runSpacing: 12,
+                spacing: 10,
+                runSpacing: 10,
                 children: const <Widget>[
                   _DashboardShortcutCard(
                     label: 'Accounts',
@@ -179,10 +179,10 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Card(
                 child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
+                  contentPadding: const EdgeInsets.all(12),
                   leading: CircleAvatar(
                     backgroundColor: isDark
                         ? AppColors.darkElevated
@@ -202,9 +202,9 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               const _SectionHeader(title: 'Recent transactions'),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               recentTransactionsAsync.when(
                 data: (items) {
                   if (items.isEmpty) {
@@ -250,7 +250,7 @@ class _DashboardShortcutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final double width = (MediaQuery.sizeOf(context).width - 44) / 2;
+    final double width = (MediaQuery.sizeOf(context).width - 34) / 2;
 
     return SizedBox(
       width: width,
@@ -259,11 +259,11 @@ class _DashboardShortcutCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           onTap: () => context.push(route),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: <Widget>[
                 CircleAvatar(
-                  radius: 19,
+                  radius: 18,
                   backgroundColor: isDark
                       ? AppColors.darkElevated
                       : AppColors.lightMint,
@@ -300,7 +300,7 @@ class _ActiveLoanCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: () => context.push('/loans/${loan.id}'),
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -397,7 +397,7 @@ class _BalanceCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: <Widget>[
             Expanded(
@@ -499,7 +499,7 @@ class _RecentTransactionTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
+        contentPadding: const EdgeInsets.all(12),
         leading: CircleAvatar(
           backgroundColor: amountColor.withValues(alpha: isDark ? 0.18 : 0.12),
           foregroundColor: amountColor,

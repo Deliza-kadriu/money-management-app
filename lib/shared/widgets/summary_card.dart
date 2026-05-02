@@ -20,7 +20,7 @@ class SummaryCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -32,7 +32,7 @@ class SummaryCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -40,14 +40,14 @@ class SummaryCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               amountLabel,
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(color: accentColor),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             DecoratedBox(
               decoration: BoxDecoration(
                 color: chipColor,

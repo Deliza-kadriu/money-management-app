@@ -46,7 +46,7 @@ class AppFilterChips<T> extends StatelessWidget {
               final bool isSelected = item.value == selected;
 
               return Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 6),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(999),
                   onTap: () => onChanged(item.value),
@@ -54,8 +54,8 @@ class AppFilterChips<T> extends StatelessWidget {
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOut,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                      horizontal: 12,
+                      vertical: 8,
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
@@ -74,8 +74,8 @@ class AppFilterChips<T> extends StatelessWidget {
                                 color: AppColors.primary.withValues(
                                   alpha: isDark ? 0.10 : 0.18,
                                 ),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
                               ),
                             ]
                           : <BoxShadow>[
@@ -83,8 +83,8 @@ class AppFilterChips<T> extends StatelessWidget {
                                 color: Colors.black.withValues(
                                   alpha: isDark ? 0.10 : 0.03,
                                 ),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                     ),

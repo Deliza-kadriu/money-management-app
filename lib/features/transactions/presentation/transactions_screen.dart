@@ -152,87 +152,17 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           }
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
             children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: isDark ? AppColors.darkBorder : AppColors.lightMint,
-                    width: 1.3,
-                  ),
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: isDark ? 0.22 : 0.05,
-                      ),
-                      blurRadius: 14,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: SegmentedButton<TransactionPresentationTab>(
-                  style: ButtonStyle(
-                    side: WidgetStatePropertyAll(BorderSide.none),
-                    backgroundColor: WidgetStateProperty.resolveWith<Color?>((
-                      states,
-                    ) {
-                      if (states.contains(WidgetState.selected)) {
-                        return isDark
-                            ? AppColors.primaryDark.withValues(alpha: 0.48)
-                            : AppColors.lightMint;
-                      }
-                      return Colors.transparent;
-                    }),
-                    foregroundColor: WidgetStateProperty.resolveWith<Color?>((
-                      states,
-                    ) {
-                      if (states.contains(WidgetState.selected)) {
-                        return isDark
-                            ? AppColors.textLight
-                            : AppColors.primaryDark;
-                      }
-                      return isDark
-                          ? AppColors.mutedLight
-                          : AppColors.textDark.withValues(alpha: 0.72);
-                    }),
-                    shape: WidgetStatePropertyAll(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    padding: const WidgetStatePropertyAll(
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                    ),
-                  ),
-                  segments: const <ButtonSegment<TransactionPresentationTab>>[
-                    ButtonSegment<TransactionPresentationTab>(
-                      value: TransactionPresentationTab.expense,
-                      label: Text('Expenses'),
-                      icon: Icon(Icons.arrow_upward_rounded),
-                    ),
-                    ButtonSegment<TransactionPresentationTab>(
-                      value: TransactionPresentationTab.income,
-                      label: Text('Income'),
-                      icon: Icon(Icons.arrow_downward_rounded),
-                    ),
-                    ButtonSegment<TransactionPresentationTab>(
-                      value: TransactionPresentationTab.allList,
-                      label: Text('All list'),
-                      icon: Icon(Icons.view_list_rounded),
-                    ),
-                  ],
-                  selected: <TransactionPresentationTab>{_presentationTab},
-                  onSelectionChanged: (selection) {
-                    setState(() {
-                      _presentationTab = selection.first;
-                    });
-                  },
-                ),
+              _TransactionTypeTabs(
+                selected: _presentationTab,
+                onChanged: (value) {
+                  setState(() {
+                    _presentationTab = value;
+                  });
+                },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
@@ -250,16 +180,16 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   SizedBox(
-                    height: 54,
+                    height: 44,
                     child: OutlinedButton(
                       onPressed: filtersReady
                           ? () =>
                                 _openFiltersSheet(context, accounts, categories)
                           : null,
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         side: BorderSide(
                           color: _hasActiveFilters
                               ? AppColors.primary
@@ -269,7 +199,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                           width: 1.3,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                         backgroundColor: _hasActiveFilters
                             ? AppColors.primary.withValues(
@@ -285,6 +215,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                             children: <Widget>[
                               Icon(
                                 Icons.tune_rounded,
+                                size: 20,
                                 color: isDark
                                     ? AppColors.textLight
                                     : AppColors.textDark,
@@ -304,7 +235,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                                 ),
                             ],
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           const Text('Filter'),
                         ],
                       ),
@@ -312,7 +243,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               _TransactionInsightsCard(
                 transactions: filteredTransactions,
                 categories: categories ?? const <category_domain.Category>[],
@@ -320,11 +251,16 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 hiddenExpenseLabels: _hiddenExpenseInsightLabels,
                 hiddenIncomeLabels: _hiddenIncomeInsightLabels,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
+              _TransactionListHeader(
+                count: displayedTransactions.length,
+                grouped: _presentationTab != TransactionPresentationTab.allList,
+              ),
+              const SizedBox(height: 10),
               if (displayedTransactions.isEmpty)
                 const Card(
                   child: Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: EdgeInsets.all(14),
                     child: Text('No transactions match the current filters.'),
                   ),
                 ),
@@ -857,16 +793,16 @@ class _AppSearchField extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        height: 54,
+        height: 44,
         decoration: BoxDecoration(
           color: fieldColor,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: borderColor, width: 1.4),
+          border: Border.all(color: borderColor, width: 1),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.035),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -883,7 +819,7 @@ class _AppSearchField extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
             prefixIcon: Container(
-              margin: const EdgeInsets.all(7),
+              margin: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(999),
@@ -891,7 +827,7 @@ class _AppSearchField extends StatelessWidget {
               child: Icon(
                 Icons.search_rounded,
                 color: isDark ? AppColors.textLight : AppColors.primaryDark,
-                size: 21,
+                size: 18,
               ),
             ),
             suffixIcon: hasText
@@ -906,9 +842,133 @@ class _AppSearchField extends StatelessWidget {
             focusedBorder: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 4,
-              vertical: 15,
+              vertical: 11,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionTypeTabs extends StatelessWidget {
+  const _TransactionTypeTabs({required this.selected, required this.onChanged});
+
+  final TransactionPresentationTab selected;
+  final ValueChanged<TransactionPresentationTab> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children:
+          const <_TransactionTabSpec>[
+                _TransactionTabSpec(
+                  value: TransactionPresentationTab.expense,
+                  label: 'Expenses',
+                  icon: Icons.arrow_upward_rounded,
+                ),
+                _TransactionTabSpec(
+                  value: TransactionPresentationTab.income,
+                  label: 'Income',
+                  icon: Icons.arrow_downward_rounded,
+                ),
+                _TransactionTabSpec(
+                  value: TransactionPresentationTab.allList,
+                  label: 'All',
+                  icon: Icons.view_list_rounded,
+                ),
+              ]
+              .map((tab) {
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: tab.value == TransactionPresentationTab.allList
+                          ? 0
+                          : 8,
+                    ),
+                    child: _TransactionTypeTab(
+                      spec: tab,
+                      selected: selected == tab.value,
+                      onTap: () => onChanged(tab.value),
+                    ),
+                  ),
+                );
+              })
+              .toList(growable: false),
+    );
+  }
+}
+
+class _TransactionTabSpec {
+  const _TransactionTabSpec({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
+
+  final TransactionPresentationTab value;
+  final String label;
+  final IconData icon;
+}
+
+class _TransactionTypeTab extends StatelessWidget {
+  const _TransactionTypeTab({
+    required this.spec,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _TransactionTabSpec spec;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color borderColor = selected
+        ? AppColors.primary
+        : isDark
+        ? AppColors.darkBorder
+        : AppColors.lightMint;
+    final Color backgroundColor = selected
+        ? AppColors.primary.withValues(alpha: isDark ? 0.20 : 0.10)
+        : Colors.transparent;
+    final Color contentColor = selected
+        ? (isDark ? AppColors.textLight : AppColors.primaryDark)
+        : (isDark ? AppColors.mutedLight : AppColors.textDark);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: borderColor, width: selected ? 1.3 : 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(spec.icon, size: 16, color: contentColor),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                spec.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: contentColor,
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1158,7 +1218,7 @@ class _TransactionInsightsCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -1171,7 +1231,11 @@ class _TransactionInsightsCard extends StatelessWidget {
               ),
             ],
             if (showIncome && incomeRows.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 16),
+              if (showExpense && expenseRows.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 12),
+              ],
               _TransactionPieSection(
                 title: 'Income categories',
                 rows: incomeRows,
@@ -1189,6 +1253,31 @@ class _TransactionInsightsCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TransactionListHeader extends StatelessWidget {
+  const _TransactionListHeader({required this.count, required this.grouped});
+
+  final int count;
+  final bool grouped;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            'Transactions',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        Text(
+          '$count shown${grouped ? ' • grouped' : ''}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }
@@ -2115,14 +2204,14 @@ class _TransactionCard extends StatelessWidget {
     final int attachmentCount = transaction.attachmentFilePaths.length;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        padding: const EdgeInsets.fromLTRB(14, 10, 4, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 Expanded(
                   child: Text(
@@ -2131,35 +2220,48 @@ class _TransactionCard extends StatelessWidget {
                         : transaction.note,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Text(
                   amountLabel,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(color: amountColor),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: amountColor,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Row(
               children: <Widget>[
                 Expanded(
                   child: Text(
-                    AppDateFormatter.format(transaction.transactionDate),
+                    '$subtitle • ${AppDateFormatter.format(transaction.transactionDate)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
                 if (attachmentCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Icon(
+                      Icons.attach_file_rounded,
+                      size: 15,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                    ),
+                  ),
+                if (attachmentCount > 0)
                   Text(
-                    '$attachmentCount receipt${attachmentCount == 1 ? '' : 's'}',
+                    '$attachmentCount',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 PopupMenuButton<String>(
+                  iconSize: 19,
                   onSelected: (value) async {
                     switch (value) {
                       case 'edit':

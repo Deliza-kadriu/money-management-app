@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:money_manager/app/router.dart';
@@ -14,16 +16,22 @@ class MoneyManagerApp extends ConsumerStatefulWidget {
 
 class _MoneyManagerAppState extends ConsumerState<MoneyManagerApp>
     with WidgetsBindingObserver {
+  Timer? _recurringRefreshTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     Future<void>.microtask(_initializeAppServices);
+    _recurringRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      Future<void>.microtask(_refreshAppServices);
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _recurringRefreshTimer?.cancel();
     super.dispose();
   }
 
