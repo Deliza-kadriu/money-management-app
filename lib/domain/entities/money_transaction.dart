@@ -9,6 +9,9 @@ class MoneyTransaction {
     required this.amountMinor,
     required this.transactionDate,
     required this.note,
+    this.source,
+    this.loanId,
+    this.loanInstallmentId,
     this.destinationAccountId,
     this.destinationAccountName,
     this.categoryId,
@@ -28,6 +31,9 @@ class MoneyTransaction {
   final int amountMinor;
   final DateTime transactionDate;
   final String note;
+  final String? source;
+  final String? loanId;
+  final String? loanInstallmentId;
   final String? categoryId;
   final String? categoryName;
   final String? childCategoryId;

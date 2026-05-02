@@ -21,6 +21,12 @@ class Transactions extends Table {
 
   TextColumn get recurringRuleId => text().nullable()();
 
+  TextColumn get source => text().nullable()();
+
+  TextColumn get loanId => text().nullable()();
+
+  TextColumn get loanInstallmentId => text().nullable()();
+
   DateTimeColumn get createdAt => dateTime()();
 
   DateTimeColumn get updatedAt => dateTime()();

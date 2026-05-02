@@ -2,13 +2,15 @@ import 'package:money_manager/domain/entities/account.dart';
 import 'package:money_manager/domain/enums/account_type.dart';
 
 abstract class AccountRepository {
-  Stream<List<Account>> watchActiveAccounts();
+  Stream<List<Account>> watchAccounts({bool archivedOnly = false});
 
   Future<void> createAccount(CreateAccountInput input);
 
   Future<void> updateAccount(String id, UpdateAccountInput input);
 
   Future<void> softDeleteAccount(String id);
+
+  Future<void> restoreAccount(String id);
 }
 
 class CreateAccountInput {
@@ -20,6 +22,8 @@ class CreateAccountInput {
     required this.colorValue,
     required this.iconKey,
     this.isActive = true,
+    this.excludeFromTotals = false,
+    this.isDefault = false,
   });
 
   final String name;
@@ -29,6 +33,8 @@ class CreateAccountInput {
   final int colorValue;
   final String iconKey;
   final bool isActive;
+  final bool excludeFromTotals;
+  final bool isDefault;
 }
 
 class UpdateAccountInput {
@@ -39,6 +45,8 @@ class UpdateAccountInput {
     required this.colorValue,
     required this.iconKey,
     required this.isActive,
+    required this.excludeFromTotals,
+    required this.isDefault,
   });
 
   final String name;
@@ -47,4 +55,6 @@ class UpdateAccountInput {
   final int colorValue;
   final String iconKey;
   final bool isActive;
+  final bool excludeFromTotals;
+  final bool isDefault;
 }

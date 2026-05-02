@@ -25,6 +25,9 @@ class CreateTransactionInput {
     required this.amountMinor,
     required this.transactionDate,
     required this.note,
+    this.source,
+    this.loanId,
+    this.loanInstallmentId,
     this.destinationAccountId,
     this.categoryId,
     this.childCategoryId,
@@ -38,6 +41,9 @@ class CreateTransactionInput {
   final int amountMinor;
   final DateTime transactionDate;
   final String note;
+  final String? source;
+  final String? loanId;
+  final String? loanInstallmentId;
   final String? categoryId;
   final String? childCategoryId;
   final String? recurringRuleId;

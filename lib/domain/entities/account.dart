@@ -14,6 +14,8 @@ class Account {
     required this.color,
     required this.icon,
     required this.isActive,
+    required this.excludeFromTotals,
+    required this.isDefault,
   });
 
   final String id;
@@ -27,4 +29,6 @@ class Account {
   final Color color;
   final IconData icon;
   final bool isActive;
+  final bool excludeFromTotals;
+  final bool isDefault;
 }

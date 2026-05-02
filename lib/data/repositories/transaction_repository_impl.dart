@@ -48,10 +48,9 @@ class TransactionRepositoryImpl implements TransactionRepository {
       DashboardSummary
     >(_watchActiveAccountRows(), watchTransactions(), (accounts, transactions) {
       final DateTime now = DateTime.now();
-      final int totalBalanceMinor = accounts.fold<int>(
-        0,
-        (sum, account) => sum + account.currentBalanceMinor,
-      );
+      final int totalBalanceMinor = accounts
+          .where((account) => !account.excludeFromTotals)
+          .fold<int>(0, (sum, account) => sum + account.currentBalanceMinor);
 
       int monthIncomeMinor = 0;
       int monthExpenseMinor = 0;
@@ -104,6 +103,9 @@ class TransactionRepositoryImpl implements TransactionRepository {
               childCategoryId: Value(input.childCategoryId),
               note: Value(input.note.trim()),
               recurringRuleId: Value(input.recurringRuleId),
+              source: Value(input.source),
+              loanId: Value(input.loanId),
+              loanInstallmentId: Value(input.loanInstallmentId),
               createdAt: now,
               updatedAt: now,
             ),
@@ -166,6 +168,9 @@ class TransactionRepositoryImpl implements TransactionRepository {
           categoryId: Value(input.categoryId),
           childCategoryId: Value(input.childCategoryId),
           note: Value(input.note.trim()),
+          source: Value(input.source),
+          loanId: Value(input.loanId),
+          loanInstallmentId: Value(input.loanInstallmentId),
           updatedAt: Value(now),
         ),
       );
@@ -313,6 +318,9 @@ class TransactionRepositoryImpl implements TransactionRepository {
             amountMinor: row.amountMinor,
             transactionDate: row.transactionDate,
             note: row.note,
+            source: row.source,
+            loanId: row.loanId,
+            loanInstallmentId: row.loanInstallmentId,
             categoryId: row.categoryId,
             categoryName: category?.name,
             childCategoryId: row.childCategoryId,

@@ -9,6 +9,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Money Manager'), findsOneWidget);
-    expect(find.text('Recent transactions'), findsOneWidget);
+    expect(find.text('Quick access'), findsOneWidget);
+    expect(find.text('Accounts'), findsOneWidget);
   });
 }

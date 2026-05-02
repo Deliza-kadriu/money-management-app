@@ -30,14 +30,32 @@ class RecurringRuleRepositoryImpl implements RecurringRuleRepository {
   }
 
   @override
-  Future<void> createRecurringRule(CreateRecurringRuleInput input) async {
+  Future<List<domain.RecurringRule>> getRecurringRules({
+    bool archivedOnly = false,
+  }) async {
+    final query = _database.select(_database.recurringRules)
+      ..where(
+        (tbl) =>
+            archivedOnly ? tbl.deletedAt.isNotNull() : tbl.deletedAt.isNull(),
+      )
+      ..orderBy(<OrderingTerm Function(db.$RecurringRulesTable)>[
+        (tbl) => OrderingTerm.asc(tbl.nextDueDate),
+        (tbl) => OrderingTerm.asc(tbl.title),
+      ]);
+    final rows = await query.get();
+    return _mapRuleRows(rows);
+  }
+
+  @override
+  Future<String> createRecurringRule(CreateRecurringRuleInput input) async {
     final DateTime now = DateTime.now();
+    final String id = _uuid.v4();
 
     await _database
         .into(_database.recurringRules)
         .insert(
           db.RecurringRulesCompanion.insert(
-            id: _uuid.v4(),
+            id: id,
             title: input.title.trim(),
             type: input.type.name,
             frequency: input.frequency.name,
@@ -59,6 +77,8 @@ class RecurringRuleRepositoryImpl implements RecurringRuleRepository {
             updatedAt: now,
           ),
         );
+
+    return id;
   }
 
   @override

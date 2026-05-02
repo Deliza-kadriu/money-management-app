@@ -2,13 +2,15 @@ import 'package:money_manager/domain/entities/category.dart';
 import 'package:money_manager/domain/enums/category_type.dart';
 
 abstract class CategoryRepository {
-  Stream<List<Category>> watchActiveCategories();
+  Stream<List<Category>> watchCategories({bool archivedOnly = false});
 
   Future<void> createCategory(CreateCategoryInput input);
 
   Future<void> updateCategory(String id, UpdateCategoryInput input);
 
   Future<void> softDeleteCategory(String id);
+
+  Future<void> restoreCategory(String id);
 }
 
 class CreateCategoryInput {

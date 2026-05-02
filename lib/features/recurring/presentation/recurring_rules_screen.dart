@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:money_manager/core/utils/date_formatter.dart';
 import 'package:money_manager/core/utils/currency_formatter.dart';
 import 'package:money_manager/domain/entities/recurring_rule.dart';
 import 'package:money_manager/domain/entities/recurring_rule_run.dart';
@@ -8,6 +9,7 @@ import 'package:money_manager/domain/enums/recurring_frequency.dart';
 import 'package:money_manager/domain/enums/transaction_type.dart';
 import 'package:money_manager/domain/repositories/recurring_rule_repository.dart';
 import 'package:money_manager/shared/providers/app_providers.dart';
+import 'package:money_manager/shared/widgets/app_mode_tabs.dart';
 
 enum RecurringListMode { active, suggestions, archived }
 
@@ -106,10 +108,16 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
                                 await ref
                                     .read(recurringRuleRepositoryProvider)
                                     .softDeleteRecurringRule(rule.id);
+                                await ref
+                                    .read(recurringReminderServiceProvider)
+                                    .cancelForRule(rule.id);
                               } else if (value == 'restore') {
                                 await ref
                                     .read(recurringRuleRepositoryProvider)
                                     .restoreRecurringRule(rule.id);
+                                await ref
+                                    .read(recurringReminderServiceProvider)
+                                    .scheduleForRule(rule);
                               }
                             },
                             itemBuilder: (context) => archivedOnly
@@ -257,17 +265,16 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
       showDragHandle: true,
       builder: (context) => _CreateRecurringRuleSheet(
         onCreate: (input) async {
-          await ref
+          final String ruleId = await ref
               .read(recurringRuleRepositoryProvider)
               .createRecurringRule(input);
-          await ref
-              .read(notificationServiceProvider)
-              .scheduleRecurringRuleReminder(
-                notificationId: input.title.hashCode,
-                title: input.title,
-                body:
-                    'Recurring ${_typeLabel(input.type).toLowerCase()} is scheduled.',
-              );
+          await _afterRuleSaved(
+            ruleId: ruleId,
+            title: input.title,
+            type: input.type,
+            nextDueDate: input.nextDueDate,
+            reminderDaysBefore: input.reminderDaysBefore,
+          );
         },
       ),
     );
@@ -289,15 +296,45 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
           await ref
               .read(recurringRuleRepositoryProvider)
               .updateRecurringRule(rule.id, input);
+          await _afterRuleSaved(
+            ruleId: rule.id,
+            title: input.title,
+            type: input.type,
+            nextDueDate: input.nextDueDate,
+            reminderDaysBefore: input.reminderDaysBefore,
+          );
         },
       ),
     );
+  }
+
+  Future<void> _afterRuleSaved({
+    required String ruleId,
+    required String title,
+    required TransactionType type,
+    required DateTime nextDueDate,
+    required int reminderDaysBefore,
+  }) async {
+    await ref
+        .read(recurringReminderServiceProvider)
+        .scheduleForInput(
+          ruleId: ruleId,
+          title: title,
+          type: type,
+          nextDueDate: nextDueDate,
+          reminderDaysBefore: reminderDaysBefore,
+        );
+    await ref
+        .read(recurringRuleProcessorProvider)
+        .processDueRules(notifyWhenWorkFound: false);
+    await ref.read(recurringReminderServiceProvider).syncActiveReminders();
   }
 
   Future<void> _processDueRules() async {
     final result = await ref
         .read(recurringRuleProcessorProvider)
         .processDueRules();
+    await ref.read(recurringReminderServiceProvider).syncActiveReminders();
 
     if (!mounted) {
       return;
@@ -363,7 +400,7 @@ class _RecurringRulesScreenState extends ConsumerState<RecurringRulesScreen> {
   }
 
   String _dateLabel(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return AppDateFormatter.format(date);
   }
 }
 
@@ -375,25 +412,26 @@ class _RecurringToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<RecurringListMode>(
-      segments: const <ButtonSegment<RecurringListMode>>[
-        ButtonSegment<RecurringListMode>(
+    return AppModeTabs<RecurringListMode>(
+      selected: mode,
+      onChanged: onModeChanged,
+      items: const <AppModeTabItem<RecurringListMode>>[
+        AppModeTabItem<RecurringListMode>(
           value: RecurringListMode.active,
-          label: Text('Active'),
+          label: 'Active',
+          icon: Icons.repeat_rounded,
         ),
-        ButtonSegment<RecurringListMode>(
+        AppModeTabItem<RecurringListMode>(
           value: RecurringListMode.suggestions,
-          label: Text('Suggestions'),
+          label: 'Suggestions',
+          icon: Icons.fact_check_outlined,
         ),
-        ButtonSegment<RecurringListMode>(
+        AppModeTabItem<RecurringListMode>(
           value: RecurringListMode.archived,
-          label: Text('Archived'),
+          label: 'Archived',
+          icon: Icons.archive_outlined,
         ),
       ],
-      selected: <RecurringListMode>{mode},
-      onSelectionChanged: (selection) {
-        onModeChanged(selection.first);
-      },
     );
   }
 }
@@ -503,9 +541,9 @@ class _CreateRecurringRuleSheetState
   String? _selectedCategoryId;
   String? _selectedChildCategoryId;
   DateTime _selectedStartDate = DateTime.now();
-  DateTime _selectedNextDueDate = DateTime.now();
+  TimeOfDay _selectedExecutionTime = TimeOfDay.now();
   int _reminderDaysBefore = 0;
-  bool _autoCreate = false;
+  bool _autoCreate = true;
   bool _isSaving = false;
   bool get _isEditing => widget.rule != null;
 
@@ -528,7 +566,7 @@ class _CreateRecurringRuleSheetState
     _selectedCategoryId = rule.categoryId;
     _selectedChildCategoryId = rule.childCategoryId;
     _selectedStartDate = rule.startDate;
-    _selectedNextDueDate = rule.nextDueDate;
+    _selectedExecutionTime = TimeOfDay.fromDateTime(rule.nextDueDate);
     _reminderDaysBefore = rule.reminderDaysBefore;
     _autoCreate = rule.autoCreate;
   }
@@ -786,22 +824,22 @@ class _CreateRecurringRuleSheetState
                     if (picked != null) {
                       setState(() {
                         _selectedStartDate = picked;
-                        if (_selectedNextDueDate.isBefore(picked)) {
-                          _selectedNextDueDate = picked;
-                        }
                       });
                     }
                   },
                 ),
                 const SizedBox(height: 12),
-                _DateField(
-                  label: 'Next due date',
-                  value: _selectedNextDueDate,
+                _TimeField(
+                  label: 'Execution time',
+                  value: _selectedExecutionTime,
                   onTap: () async {
-                    final picked = await _pickDate(_selectedNextDueDate);
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: _selectedExecutionTime,
+                    );
                     if (picked != null) {
                       setState(() {
-                        _selectedNextDueDate = picked;
+                        _selectedExecutionTime = picked;
                       });
                     }
                   },
@@ -844,7 +882,7 @@ class _CreateRecurringRuleSheetState
                   },
                   title: const Text('Auto-create transaction'),
                   subtitle: const Text(
-                    'For MVP, rules are still mainly reminders.',
+                    'Create the transaction automatically when the rule becomes due.',
                   ),
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -895,6 +933,10 @@ class _CreateRecurringRuleSheetState
           ? null
           : _selectedChildCategoryId;
       final int amountMinor = _parseMinorUnits(_amountController.text);
+      final DateTime scheduledStart = _combineDateAndTime(
+        _selectedStartDate,
+        _selectedExecutionTime,
+      );
 
       if (_isEditing) {
         await widget.onUpdate!(
@@ -908,8 +950,8 @@ class _CreateRecurringRuleSheetState
             childCategoryId: childCategoryId,
             amountMinor: amountMinor,
             note: _noteController.text,
-            startDate: _selectedStartDate,
-            nextDueDate: _selectedNextDueDate,
+            startDate: scheduledStart,
+            nextDueDate: scheduledStart,
             reminderDaysBefore: _reminderDaysBefore,
             autoCreate: _autoCreate,
             isActive: widget.rule!.isActive,
@@ -927,8 +969,8 @@ class _CreateRecurringRuleSheetState
             childCategoryId: childCategoryId,
             amountMinor: amountMinor,
             note: _noteController.text,
-            startDate: _selectedStartDate,
-            nextDueDate: _selectedNextDueDate,
+            startDate: scheduledStart,
+            nextDueDate: scheduledStart,
             reminderDaysBefore: _reminderDaysBefore,
             autoCreate: _autoCreate,
           ),
@@ -945,6 +987,10 @@ class _CreateRecurringRuleSheetState
         });
       }
     }
+  }
+
+  DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
   int _parseMinorUnits(String value) {
@@ -1008,10 +1054,38 @@ class _DateField extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            Text(
-              '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}',
-            ),
+            Text(AppDateFormatter.format(value)),
             const Icon(Icons.calendar_today_rounded, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeField extends StatelessWidget {
+  const _TimeField({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final TimeOfDay value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(labelText: label),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Text(value.format(context)),
+            const Icon(Icons.schedule_rounded, size: 18),
           ],
         ),
       ),

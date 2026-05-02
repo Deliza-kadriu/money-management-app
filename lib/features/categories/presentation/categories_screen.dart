@@ -5,35 +5,57 @@ import 'package:money_manager/domain/entities/category.dart' as domain;
 import 'package:money_manager/domain/enums/category_type.dart';
 import 'package:money_manager/domain/repositories/category_repository.dart';
 import 'package:money_manager/shared/providers/app_providers.dart';
+import 'package:money_manager/shared/widgets/app_mode_tabs.dart';
 
-class CategoriesScreen extends ConsumerWidget {
+enum CategoryListMode { active, archived }
+
+class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final categoriesAsync = ref.watch(categoriesProvider);
+  ConsumerState<CategoriesScreen> createState() => _CategoriesScreenState();
+}
+
+class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
+  CategoryListMode _mode = CategoryListMode.active;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool archivedOnly = _mode == CategoryListMode.archived;
+    final categoriesAsync = ref.watch(categoriesByModeProvider(archivedOnly));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Categories'),
         actions: <Widget>[
-          IconButton(
-            onPressed: () => _showCreateCategorySheet(context, ref),
-            icon: const Icon(Icons.add_circle_outline_rounded),
-            tooltip: 'Create category',
-          ),
+          if (!archivedOnly)
+            IconButton(
+              onPressed: () => _showCreateCategorySheet(context, ref),
+              icon: const Icon(Icons.add_circle_outline_rounded),
+              tooltip: 'Create category',
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateCategorySheet(context, ref),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add category'),
-      ),
+      floatingActionButton: archivedOnly
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _showCreateCategorySheet(context, ref),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add category'),
+            ),
       body: categoriesAsync.when(
         data: (categories) {
           if (categories.isEmpty) {
             return _EmptyCategoriesState(
-              onCreate: () => _showCreateCategorySheet(context, ref),
+              mode: _mode,
+              onModeChanged: (mode) {
+                setState(() {
+                  _mode = mode;
+                });
+              },
+              onCreate: archivedOnly
+                  ? null
+                  : () => _showCreateCategorySheet(context, ref),
             );
           }
 
@@ -44,101 +66,137 @@ class CategoriesScreen extends ConsumerWidget {
               .where((category) => category.isParent)
               .toList(growable: false);
 
-          return ListView.separated(
+          return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            itemCount: parents.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final parent = parents[index];
-              final children = grouped[parent.id] ?? const <domain.Category>[];
+            children: <Widget>[
+              _CategoryToolbar(
+                mode: _mode,
+                onModeChanged: (mode) {
+                  setState(() {
+                    _mode = mode;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              ...parents.map((parent) {
+                final children =
+                    grouped[parent.id] ?? const <domain.Category>[];
 
-              return Card(
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  leading: CircleAvatar(
-                    backgroundColor: parent.color.withValues(alpha: 0.16),
-                    foregroundColor: parent.color,
-                    child: Icon(CategoryVisuals.iconFromKey(parent.iconKey)),
-                  ),
-                  title: Text(parent.name),
-                  subtitle: Text(_categoryTypeLabel(parent.type)),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        await _showEditCategorySheet(context, ref, parent);
-                      } else if (value == 'archive') {
-                        await ref
-                            .read(categoryRepositoryProvider)
-                            .softDeleteCategory(parent.id);
-                      }
-
-                      if (value == 'add_child' && context.mounted) {
-                        await _showCreateCategorySheet(
-                          context,
-                          ref,
-                          preselectedParent: parent,
-                        );
-                      }
-                    },
-                    itemBuilder: (context) => const <PopupMenuEntry<String>>[
-                      PopupMenuItem<String>(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem<String>(
-                        value: 'add_child',
-                        child: Text('Add child'),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'archive',
-                        child: Text('Archive'),
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    leading: CircleAvatar(
+                      backgroundColor: parent.color.withValues(alpha: 0.16),
+                      foregroundColor: parent.color,
+                      child: Icon(CategoryVisuals.iconFromKey(parent.iconKey)),
+                    ),
+                    title: Text(parent.name),
+                    subtitle: Text(_categoryTypeLabel(parent.type)),
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          await _showEditCategorySheet(context, ref, parent);
+                        } else if (value == 'archive') {
+                          await ref
+                              .read(categoryRepositoryProvider)
+                              .softDeleteCategory(parent.id);
+                        } else if (value == 'restore') {
+                          await ref
+                              .read(categoryRepositoryProvider)
+                              .restoreCategory(parent.id);
+                        } else if (value == 'add_child' && context.mounted) {
+                          await _showCreateCategorySheet(
+                            context,
+                            ref,
+                            preselectedParent: parent,
+                          );
+                        }
+                      },
+                      itemBuilder: (context) => archivedOnly
+                          ? const <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'restore',
+                                child: Text('Restore'),
+                              ),
+                            ]
+                          : const <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'edit',
+                                child: Text('Edit'),
+                              ),
+                              PopupMenuItem<String>(
+                                value: 'add_child',
+                                child: Text('Add child'),
+                              ),
+                              PopupMenuItem<String>(
+                                value: 'archive',
+                                child: Text('Archive'),
+                              ),
+                            ],
+                    ),
+                    children: <Widget>[
+                      if (children.isEmpty)
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text('No child categories yet'),
+                          ),
+                        ),
+                      ...children.map(
+                        (child) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const SizedBox(width: 12),
+                          title: Text(child.name),
+                          subtitle: Text(_categoryTypeLabel(child.type)),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                await _showEditCategorySheet(
+                                  context,
+                                  ref,
+                                  child,
+                                );
+                              } else if (value == 'archive') {
+                                await ref
+                                    .read(categoryRepositoryProvider)
+                                    .softDeleteCategory(child.id);
+                              } else if (value == 'restore') {
+                                await ref
+                                    .read(categoryRepositoryProvider)
+                                    .restoreCategory(child.id);
+                              }
+                            },
+                            itemBuilder: (context) => archivedOnly
+                                ? const <PopupMenuEntry<String>>[
+                                    PopupMenuItem<String>(
+                                      value: 'restore',
+                                      child: Text('Restore'),
+                                    ),
+                                  ]
+                                : const <PopupMenuEntry<String>>[
+                                    PopupMenuItem<String>(
+                                      value: 'edit',
+                                      child: Text('Edit'),
+                                    ),
+                                    PopupMenuItem<String>(
+                                      value: 'archive',
+                                      child: Text('Archive'),
+                                    ),
+                                  ],
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  children: <Widget>[
-                    if (children.isEmpty)
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Text('No child categories yet'),
-                        ),
-                      ),
-                    ...children.map(
-                      (child) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const SizedBox(width: 12),
-                        title: Text(child.name),
-                        subtitle: Text(_categoryTypeLabel(child.type)),
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (value) async {
-                            if (value == 'edit') {
-                              await _showEditCategorySheet(context, ref, child);
-                            } else if (value == 'archive') {
-                              await ref
-                                  .read(categoryRepositoryProvider)
-                                  .softDeleteCategory(child.id);
-                            }
-                          },
-                          itemBuilder: (context) =>
-                              const <PopupMenuEntry<String>>[
-                                PopupMenuItem<String>(
-                                  value: 'edit',
-                                  child: Text('Edit'),
-                                ),
-                                PopupMenuItem<String>(
-                                  value: 'archive',
-                                  child: Text('Archive'),
-                                ),
-                              ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                );
+              }),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -201,7 +259,9 @@ class CategoriesScreen extends ConsumerWidget {
 
     for (final category in categories) {
       final String? parentId = category.parentId;
-      if (parentId == null) continue;
+      if (parentId == null) {
+        continue;
+      }
 
       grouped.putIfAbsent(parentId, () => <domain.Category>[]).add(category);
     }
@@ -221,38 +281,94 @@ class CategoriesScreen extends ConsumerWidget {
   }
 }
 
-class _EmptyCategoriesState extends StatelessWidget {
-  const _EmptyCategoriesState({required this.onCreate});
+class _CategoryToolbar extends StatelessWidget {
+  const _CategoryToolbar({required this.mode, required this.onModeChanged});
 
-  final VoidCallback onCreate;
+  final CategoryListMode mode;
+  final ValueChanged<CategoryListMode> onModeChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Icon(Icons.category_outlined, size: 48),
-            const SizedBox(height: 12),
-            Text(
-              'No categories yet',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Create parent and child categories like Food > Groceries or Car > Gas.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Create category'),
-            ),
-          ],
+    return AppModeTabs<CategoryListMode>(
+      selected: mode,
+      onChanged: onModeChanged,
+      items: const <AppModeTabItem<CategoryListMode>>[
+        AppModeTabItem<CategoryListMode>(
+          value: CategoryListMode.active,
+          label: 'Active',
+          icon: Icons.category_outlined,
         ),
+        AppModeTabItem<CategoryListMode>(
+          value: CategoryListMode.archived,
+          label: 'Archived',
+          icon: Icons.archive_outlined,
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyCategoriesState extends StatelessWidget {
+  const _EmptyCategoriesState({
+    required this.mode,
+    required this.onModeChanged,
+    required this.onCreate,
+  });
+
+  final CategoryListMode mode;
+  final ValueChanged<CategoryListMode> onModeChanged;
+  final VoidCallback? onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool archivedOnly = mode == CategoryListMode.archived;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      child: Column(
+        children: <Widget>[
+          _CategoryToolbar(mode: mode, onModeChanged: onModeChanged),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      archivedOnly
+                          ? Icons.archive_outlined
+                          : Icons.category_outlined,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      archivedOnly
+                          ? 'No archived categories'
+                          : 'No categories yet',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      archivedOnly
+                          ? 'Archived categories will appear here and can be restored.'
+                          : 'Create parent and child categories like Food > Groceries or Car > Gas.',
+                      textAlign: TextAlign.center,
+                    ),
+                    if (!archivedOnly) ...<Widget>[
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: onCreate,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Create category'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -281,9 +397,9 @@ class _CreateCategorySheetState extends ConsumerState<_CreateCategorySheet> {
   final TextEditingController _nameController = TextEditingController();
 
   late CategoryType _selectedType;
+  String? _selectedParentId;
   late int _selectedColorValue;
   late String _selectedIconKey;
-  String? _selectedParentId;
   bool _isSaving = false;
   bool get _isEditing => widget.category != null;
 
@@ -292,21 +408,19 @@ class _CreateCategorySheetState extends ConsumerState<_CreateCategorySheet> {
     super.initState();
 
     final category = widget.category;
-    if (category != null) {
-      _nameController.text = category.name;
-      _selectedType = category.type;
-      _selectedParentId = category.parentId;
-      _selectedColorValue = category.colorValue;
-      _selectedIconKey = category.iconKey;
-      return;
-    }
-
     final preselectedParent = widget.preselectedParent;
-    _selectedType = preselectedParent?.type ?? CategoryType.expense;
-    _selectedParentId = preselectedParent?.id;
+    _nameController.text = category?.name ?? '';
+    _selectedParentId = category?.parentId ?? preselectedParent?.id;
+    _selectedType =
+        category?.type ?? preselectedParent?.type ?? CategoryType.expense;
     _selectedColorValue =
-        preselectedParent?.colorValue ?? CategoryVisuals.palette.first;
-    _selectedIconKey = preselectedParent?.iconKey ?? 'shopping';
+        category?.colorValue ??
+        preselectedParent?.colorValue ??
+        CategoryVisuals.palette.first;
+    _selectedIconKey =
+        category?.iconKey ??
+        preselectedParent?.iconKey ??
+        CategoryVisuals.iconMap.keys.first;
   }
 
   @override
@@ -317,8 +431,8 @@ class _CreateCategorySheetState extends ConsumerState<_CreateCategorySheet> {
 
   @override
   Widget build(BuildContext context) {
-    final MediaQueryData mediaQuery = MediaQuery.of(context);
     final categoriesAsync = ref.watch(categoriesProvider);
+    final MediaQueryData mediaQuery = MediaQuery.of(context);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -327,156 +441,213 @@ class _CreateCategorySheetState extends ConsumerState<_CreateCategorySheet> {
         16,
         mediaQuery.viewInsets.bottom + 24,
       ),
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            Text(
-              _isEditing
-                  ? 'Edit category'
-                  : widget.preselectedParent == null
-                  ? 'Create category'
-                  : 'Create child category',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Category name'),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Enter a category name';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<CategoryType>(
-              initialValue: _selectedType,
-              decoration: const InputDecoration(labelText: 'Category type'),
-              items: CategoryType.values
-                  .map(
-                    (type) => DropdownMenuItem<CategoryType>(
-                      value: type,
-                      child: Text(_categoryTypeLabel(type)),
+      child: categoriesAsync.when(
+        data: (categories) {
+          final parentCategories = categories
+              .where((category) => category.isParent)
+              .toList(growable: false);
+
+          return SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    _isEditing ? 'Edit category' : 'Add category',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Category name',
                     ),
-                  )
-                  .toList(growable: false),
-              onChanged: widget.preselectedParent != null || _isEditing
-                  ? null
-                  : (value) {
-                      if (value == null) return;
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Enter a category name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _selectedParentId,
+                    decoration: const InputDecoration(
+                      labelText: 'Parent category',
+                    ),
+                    items: <DropdownMenuItem<String?>>[
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('None (parent category)'),
+                      ),
+                      ...parentCategories.map(
+                        (category) => DropdownMenuItem<String?>(
+                          value: category.id,
+                          child: Text(category.name),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
                       setState(() {
-                        _selectedType = value;
-                        _selectedParentId = null;
+                        _selectedParentId = value;
                       });
                     },
-            ),
-            const SizedBox(height: 12),
-            categoriesAsync.when(
-              data: (categories) {
-                final parentOptions = categories
-                    .where(
-                      (category) =>
-                          category.isParent &&
-                          category.id != widget.category?.id &&
-                          category.type == _selectedType,
-                    )
-                    .toList(growable: false);
-
-                final bool parentLocked =
-                    widget.preselectedParent != null ||
-                    (widget.category?.isParent ?? false);
-
-                return DropdownButtonFormField<String?>(
-                  initialValue: _selectedParentId,
-                  decoration: const InputDecoration(
-                    labelText: 'Parent category (optional)',
                   ),
-                  items: <DropdownMenuItem<String?>>[
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('None'),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<CategoryType>(
+                    initialValue: _selectedType,
+                    decoration: const InputDecoration(
+                      labelText: 'Category type',
                     ),
-                    ...parentOptions.map(
-                      (category) => DropdownMenuItem<String?>(
-                        value: category.id,
-                        child: Text(category.name),
-                      ),
+                    items: CategoryType.values
+                        .map(
+                          (type) => DropdownMenuItem<CategoryType>(
+                            value: type,
+                            child: Text(_categoryTypeLabel(type)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _selectedType = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Color', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
                     ),
-                  ],
-                  onChanged: parentLocked
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _selectedParentId = value;
-                          });
-                        },
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) => const SizedBox.shrink(),
-            ),
-            const SizedBox(height: 16),
-            Text('Color', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              children: CategoryVisuals.palette
-                  .map((colorValue) {
-                    final bool selected = colorValue == _selectedColorValue;
-                    final Color color = CategoryVisuals.colorFromValue(
-                      colorValue,
-                    );
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: CategoryVisuals.palette
+                          .map((value) {
+                            final Color color = CategoryVisuals.colorFromValue(
+                              value,
+                            );
+                            final bool isSelected =
+                                _selectedColorValue == value;
 
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedColorValue = colorValue;
-                        });
-                      },
-                      child: CircleAvatar(
-                        radius: 18,
-                        backgroundColor: color,
-                        child: selected
-                            ? const Icon(
-                                Icons.check_rounded,
-                                color: Colors.white,
-                              )
-                            : null,
-                      ),
-                    );
-                  })
-                  .toList(growable: false),
-            ),
-            const SizedBox(height: 16),
-            Text('Icon', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              children: CategoryVisuals.iconMap.entries
-                  .map((entry) {
-                    final bool selected = entry.key == _selectedIconKey;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedColorValue = value;
+                                });
+                              },
+                              child: CircleAvatar(
+                                radius: isSelected ? 22 : 20,
+                                backgroundColor: color,
+                                child: isSelected
+                                    ? const Icon(
+                                        Icons.check_rounded,
+                                        color: Colors.white,
+                                      )
+                                    : null,
+                              ),
+                            );
+                          })
+                          .toList(growable: false),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Icon', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Choose from a larger icon set for better category recognition.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 280,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    ),
+                    child: GridView.builder(
+                      itemCount: CategoryVisuals.iconMap.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 5,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
+                      itemBuilder: (context, index) {
+                        final MapEntry<String, IconData> entry = CategoryVisuals
+                            .iconMap
+                            .entries
+                            .elementAt(index);
+                        final bool isSelected = _selectedIconKey == entry.key;
 
-                    return ChoiceChip(
-                      label: Icon(entry.value, size: 20),
-                      selected: selected,
-                      onSelected: (_) {
-                        setState(() {
-                          _selectedIconKey = entry.key;
-                        });
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedIconKey = entry.key;
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              color: isSelected
+                                  ? CategoryVisuals.colorFromValue(
+                                      _selectedColorValue,
+                                    )
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                              border: Border.all(
+                                color: isSelected
+                                    ? CategoryVisuals.colorFromValue(
+                                        _selectedColorValue,
+                                      )
+                                    : Colors.transparent,
+                                width: 1.4,
+                              ),
+                            ),
+                            child: Icon(
+                              entry.value,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        );
                       },
-                    );
-                  })
-                  .toList(growable: false),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _isSaving ? null : _submit,
+                    child: Text(
+                      _isSaving
+                          ? 'Saving...'
+                          : _isEditing
+                          ? 'Update category'
+                          : 'Save category',
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _isSaving ? null : _submit,
-              child: Text(_isSaving ? 'Saving...' : 'Save category'),
-            ),
-          ],
+          );
+        },
+        loading: () => const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (error, stackTrace) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('Failed to load category form.\n$error'),
         ),
       ),
     );
@@ -493,15 +664,15 @@ class _CreateCategorySheetState extends ConsumerState<_CreateCategorySheet> {
 
     try {
       if (_isEditing) {
-        await widget.onUpdate!(
+        await widget.onUpdate?.call(
           UpdateCategoryInput(
             name: _nameController.text,
-            parentId: widget.category!.isParent ? null : _selectedParentId,
+            parentId: _selectedParentId,
             type: _selectedType,
             iconKey: _selectedIconKey,
             colorValue: _selectedColorValue,
-            sortOrder: widget.category!.sortOrder,
-            isActive: widget.category!.isActive,
+            sortOrder: 0,
+            isActive: true,
           ),
         );
       } else {
