@@ -715,62 +715,70 @@ class _ReportBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
       children: <Widget>[
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Reports overview',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${snapshot.transactions.length} transaction(s) in this view',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 12),
-                AppFilterChips<ReportPeriod>(
-                  selected: period,
-                  onChanged: onPeriodChanged,
-                  items: const <AppFilterChipItem<ReportPeriod>>[
-                    AppFilterChipItem<ReportPeriod>(
-                      value: ReportPeriod.thisMonth,
-                      label: 'This month',
-                    ),
-                    AppFilterChipItem<ReportPeriod>(
-                      value: ReportPeriod.last30Days,
-                      label: 'Last 30 days',
-                    ),
-                    AppFilterChipItem<ReportPeriod>(
-                      value: ReportPeriod.allTime,
-                      label: 'All time',
-                    ),
-                    AppFilterChipItem<ReportPeriod>(
-                      value: ReportPeriod.custom,
-                      label: 'Custom',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: onToggleFilters,
-                    icon: Icon(
-                      showFilters
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.tune_rounded,
-                    ),
-                    label: Text(showFilters ? 'Hide filters' : 'Show filters'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _ReportToolbar(
+          transactionCount: snapshot.transactions.length,
+          period: period,
+          showFilters: showFilters,
+          hasActiveFilters: hasActiveFilters,
+          onPeriodChanged: onPeriodChanged,
+          onToggleFilters: onToggleFilters,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: SummaryCard(
+                label: 'Income',
+                amountLabel: CurrencyFormatter.formatMinorUnits(
+                  snapshot.incomeMinor,
+                ),
+                accentColor: AppColors.positive,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SummaryCard(
+                label: 'Expense',
+                amountLabel: CurrencyFormatter.formatMinorUnits(
+                  snapshot.expenseMinor,
+                ),
+                accentColor: AppColors.negative,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: SummaryCard(
+                label: 'Transfers',
+                amountLabel: CurrencyFormatter.formatMinorUnits(
+                  snapshot.transferMinor,
+                ),
+                accentColor: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SummaryCard(
+                label: 'Net',
+                amountLabel: CurrencyFormatter.formatMinorUnits(
+                  snapshot.netMinor,
+                ),
+                accentColor: snapshot.netMinor >= 0
+                    ? AppColors.primary
+                    : AppColors.negative,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Incoming and outgoing are shown separately below for a clearer monthly view.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 10),
         _FilterPanelReveal(
           visible: showFilters,
           child: Card(
@@ -936,74 +944,7 @@ class _ReportBody extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Overview',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: <Widget>[
-                    SizedBox(
-                      width: 220,
-                      child: SummaryCard(
-                        label: 'Income',
-                        amountLabel: CurrencyFormatter.formatMinorUnits(
-                          snapshot.incomeMinor,
-                        ),
-                        accentColor: AppColors.positive,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 220,
-                      child: SummaryCard(
-                        label: 'Expense',
-                        amountLabel: CurrencyFormatter.formatMinorUnits(
-                          snapshot.expenseMinor,
-                        ),
-                        accentColor: AppColors.negative,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 220,
-                      child: SummaryCard(
-                        label: 'Transfers',
-                        amountLabel: CurrencyFormatter.formatMinorUnits(
-                          snapshot.transferMinor,
-                        ),
-                        accentColor: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SummaryCard(
-                  label: 'Net',
-                  amountLabel: CurrencyFormatter.formatMinorUnits(
-                    snapshot.netMinor,
-                  ),
-                  accentColor: snapshot.netMinor >= 0
-                      ? AppColors.primary
-                      : AppColors.negative,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Incoming and outgoing are shown separately below for a clearer monthly view.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
+        if (showFilters) const SizedBox(height: 12),
         Text(
           'Outgoing by category',
           style: Theme.of(context).textTheme.titleLarge,
@@ -1100,6 +1041,98 @@ class _ReportBody extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return AppDateFormatter.format(date);
+  }
+}
+
+class _ReportToolbar extends StatelessWidget {
+  const _ReportToolbar({
+    required this.transactionCount,
+    required this.period,
+    required this.showFilters,
+    required this.hasActiveFilters,
+    required this.onPeriodChanged,
+    required this.onToggleFilters,
+  });
+
+  final int transactionCount;
+  final ReportPeriod period;
+  final bool showFilters;
+  final bool hasActiveFilters;
+  final ValueChanged<ReportPeriod> onPeriodChanged;
+  final VoidCallback onToggleFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                '$transactionCount transaction(s)',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: onToggleFilters,
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Icon(
+                    showFilters
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.tune_rounded,
+                    size: 18,
+                  ),
+                  if (hasActiveFilters)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              label: Text(showFilters ? 'Hide' : 'Filter'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        AppFilterChips<ReportPeriod>(
+          selected: period,
+          onChanged: onPeriodChanged,
+          items: const <AppFilterChipItem<ReportPeriod>>[
+            AppFilterChipItem<ReportPeriod>(
+              value: ReportPeriod.thisMonth,
+              label: 'This month',
+            ),
+            AppFilterChipItem<ReportPeriod>(
+              value: ReportPeriod.last30Days,
+              label: 'Last 30 days',
+            ),
+            AppFilterChipItem<ReportPeriod>(
+              value: ReportPeriod.allTime,
+              label: 'All time',
+            ),
+            AppFilterChipItem<ReportPeriod>(
+              value: ReportPeriod.custom,
+              label: 'Custom',
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 

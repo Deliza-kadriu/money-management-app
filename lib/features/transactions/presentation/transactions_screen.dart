@@ -25,6 +25,8 @@ enum TransactionDateFilter { all, thisMonth, last30Days, custom }
 
 enum TransactionPresentationTab { expense, income, allList }
 
+enum TransactionGroupMode { date, category }
+
 const String _uncategorizedFilterValue = '__uncategorized__';
 
 class TransactionsScreen extends ConsumerStatefulWidget {
@@ -44,6 +46,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   TransactionDateFilter _dateFilter = TransactionDateFilter.thisMonth;
   TransactionPresentationTab _presentationTab =
       TransactionPresentationTab.expense;
+  TransactionGroupMode _groupMode = TransactionGroupMode.date;
   final Set<String> _hiddenExpenseInsightLabels = <String>{};
   final Set<String> _hiddenIncomeInsightLabels = <String>{};
   DateTime? _customStartDate;
@@ -106,6 +109,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             displayedTransactions,
             categories ?? const <category_domain.Category>[],
           );
+          final dateGroups = _dateGroupsForTransactions(displayedTransactions);
+          final bool canGroupByCategory =
+              _presentationTab != TransactionPresentationTab.allList;
           final bool filtersReady = accounts != null && categories != null;
 
           if (filtersReady) {
@@ -254,7 +260,15 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               const SizedBox(height: 14),
               _TransactionListHeader(
                 count: displayedTransactions.length,
-                grouped: _presentationTab != TransactionPresentationTab.allList,
+                groupMode: canGroupByCategory
+                    ? _groupMode
+                    : TransactionGroupMode.date,
+                showGroupMode: canGroupByCategory,
+                onGroupModeChanged: (value) {
+                  setState(() {
+                    _groupMode = value;
+                  });
+                },
               ),
               const SizedBox(height: 10),
               if (displayedTransactions.isEmpty)
@@ -264,9 +278,18 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                     child: Text('No transactions match the current filters.'),
                   ),
                 ),
-              if (_presentationTab == TransactionPresentationTab.allList)
-                ...displayedTransactions.map(buildTransactionEntry),
-              if (_presentationTab != TransactionPresentationTab.allList)
+              if (displayedTransactions.isNotEmpty &&
+                  (!canGroupByCategory ||
+                      _groupMode == TransactionGroupMode.date))
+                ...dateGroups.map(
+                  (group) => _TransactionDateSection(
+                    group: group,
+                    itemBuilder: buildTransactionEntry,
+                  ),
+                ),
+              if (displayedTransactions.isNotEmpty &&
+                  canGroupByCategory &&
+                  _groupMode == TransactionGroupMode.category)
                 ...categoryGroups.map(
                   (group) => _TransactionCategorySection(
                     group: group,
@@ -1258,10 +1281,17 @@ class _TransactionInsightsCard extends StatelessWidget {
 }
 
 class _TransactionListHeader extends StatelessWidget {
-  const _TransactionListHeader({required this.count, required this.grouped});
+  const _TransactionListHeader({
+    required this.count,
+    required this.groupMode,
+    required this.showGroupMode,
+    required this.onGroupModeChanged,
+  });
 
   final int count;
-  final bool grouped;
+  final TransactionGroupMode groupMode;
+  final bool showGroupMode;
+  final ValueChanged<TransactionGroupMode> onGroupModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1273,11 +1303,111 @@ class _TransactionListHeader extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ),
-        Text(
-          '$count shown${grouped ? ' • grouped' : ''}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        if (showGroupMode) ...<Widget>[
+          _GroupModeButton(
+            label: 'Date',
+            selected: groupMode == TransactionGroupMode.date,
+            onTap: () => onGroupModeChanged(TransactionGroupMode.date),
+          ),
+          const SizedBox(width: 6),
+          _GroupModeButton(
+            label: 'Category',
+            selected: groupMode == TransactionGroupMode.category,
+            onTap: () => onGroupModeChanged(TransactionGroupMode.category),
+          ),
+          const SizedBox(width: 10),
+        ],
+        Text('$count shown', style: Theme.of(context).textTheme.bodySmall),
       ],
+    );
+  }
+}
+
+class _GroupModeButton extends StatelessWidget {
+  const _GroupModeButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color color = selected
+        ? AppColors.primary
+        : isDark
+        ? AppColors.darkBorder
+        : AppColors.lightMint;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: selected
+                ? (isDark ? AppColors.textLight : AppColors.primaryDark)
+                : null,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionDateSection extends StatelessWidget {
+  const _TransactionDateSection({
+    required this.group,
+    required this.itemBuilder,
+  });
+
+  final _TransactionDateGroup group;
+  final Widget Function(MoneyTransaction transaction) itemBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    group.label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Text(
+                  CurrencyFormatter.formatMinorUnits(group.netMinor),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          ...group.transactions.map(itemBuilder),
+        ],
+      ),
     );
   }
 }
@@ -1836,6 +1966,18 @@ class _TransactionChildGroup {
   final IconData icon;
 }
 
+class _TransactionDateGroup {
+  const _TransactionDateGroup({
+    required this.label,
+    required this.transactions,
+    required this.netMinor,
+  });
+
+  final String label;
+  final List<MoneyTransaction> transactions;
+  final int netMinor;
+}
+
 class _TransactionPieSlice {
   const _TransactionPieSlice({required this.share, required this.color});
 
@@ -2064,6 +2206,57 @@ List<_TransactionCategoryGroup> _categoryGroupsForTransactions(
           .toList(growable: false)
         ..sort((a, b) => b.totalMinor.compareTo(a.totalMinor));
   return groups;
+}
+
+List<_TransactionDateGroup> _dateGroupsForTransactions(
+  List<MoneyTransaction> transactions,
+) {
+  final sortedTransactions = [...transactions]
+    ..sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+  final Map<DateTime, List<MoneyTransaction>> grouped =
+      <DateTime, List<MoneyTransaction>>{};
+
+  for (final transaction in sortedTransactions) {
+    final date = DateTime(
+      transaction.transactionDate.year,
+      transaction.transactionDate.month,
+      transaction.transactionDate.day,
+    );
+    grouped.putIfAbsent(date, () => <MoneyTransaction>[]).add(transaction);
+  }
+
+  return grouped.entries
+      .map((entry) {
+        final int netMinor = entry.value.fold<int>(0, (sum, transaction) {
+          return switch (transaction.type) {
+            TransactionType.income => sum + transaction.amountMinor,
+            TransactionType.expense => sum - transaction.amountMinor,
+            TransactionType.transfer => sum,
+          };
+        });
+
+        return _TransactionDateGroup(
+          label: _dateGroupLabel(entry.key),
+          transactions: entry.value,
+          netMinor: netMinor,
+        );
+      })
+      .toList(growable: false);
+}
+
+String _dateGroupLabel(DateTime date) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+
+  if (date == today) {
+    return 'Today';
+  }
+  if (date == yesterday) {
+    return 'Yesterday';
+  }
+
+  return AppDateFormatter.format(date);
 }
 
 List<_TransactionPieSlice> _buildPieSlices(List<_CategoryAmountRow> rows) {

@@ -250,37 +250,51 @@ class _DashboardShortcutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final double width = (MediaQuery.sizeOf(context).width - 34) / 2;
+    final Color backgroundColor = isDark
+        ? AppColors.darkCard
+        : Colors.white.withValues(alpha: 0.78);
+    final Color borderColor = isDark
+        ? AppColors.darkBorder
+        : AppColors.lightMint;
 
     return SizedBox(
-      width: width,
-      child: Card(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => context.push(route),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: <Widget>[
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: isDark
-                      ? AppColors.darkElevated
-                      : AppColors.lightMint,
-                  foregroundColor: isDark
-                      ? AppColors.textLight
-                      : AppColors.primaryDark,
-                  child: Icon(icon),
+      width: 74,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.push(route),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                child: Icon(
+                  icon,
+                  size: 22,
+                  color: isDark ? AppColors.textLight : AppColors.primaryDark,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? AppColors.mutedLight
+                      : AppColors.textDark.withValues(alpha: 0.78),
+                ),
+              ),
+            ],
           ),
         ),
       ),
